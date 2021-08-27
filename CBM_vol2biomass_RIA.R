@@ -360,6 +360,7 @@ Init <- function(sim) {
   # curveID are the columns use to make the unique levels in the factor gcids.
   # These factor levels are the link between the pixelGroups and the curve to be
   # use to growth their AGB.
+
   curveID <- sim$curveID
   if (!is.null(sim$level3DT)) {
     gcidsLevels <- levels(sim$level3DT$gcids)
@@ -426,13 +427,19 @@ Init <- function(sim) {
   # 3. Plot the curves that are directly out of the Boudewyn-translation
   # Usually, these need to be, at a minimum, smoothed out.
   figPath <- file.path(modulePath(sim), currentModule(sim), "figures")
-  # plotting and save the plots of the raw-translation in the sim$
-  if (!is.na(P(sim)$.plotInitialTime))
-  sim$plotsRawCumulativeBiomass <- Cache(m3ToBiomPlots, inc = cumPoolsRaw,
-                                         path = figPath,
-                                         filenameBase = "rawCumBiomass_")
+
+  # plotting and save the plots of the raw-translation in the sim$ don't really
+  # need this b/c the next use of m3ToBiomPlots fnct plots all 6 curves, 3
+  # raw-translation and 3-smoothed curves resulting from the Chapman-Richards
+  # parameter finding in the cumPoolsSmooth fnct. Leaving these lines here as
+  # exploration tools.
+  # if (!is.na(P(sim)$.plotInitialTime))
+  # sim$plotsRawCumulativeBiomass <- Cache(m3ToBiomPlots, inc = cumPoolsRaw,
+  #                                        path = figPath,
+  #                                        filenameBase = "rawCumBiomass_")
 
   # Fixing of non-smooth curves
+
   cumPoolsClean <- Cache(cumPoolsSmooth, cumPoolsRaw)
 
   # a[, totMerch := totMerchNew]
