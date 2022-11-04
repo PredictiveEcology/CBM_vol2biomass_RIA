@@ -61,8 +61,31 @@ There is only one event in this module (init), and this module is only scheduled
 # Usage
 
 ```{r module_usage}
-library(SpaDES)
-library(magrittr) # this is needed to use "%>%" below
+pkgDir <- file.path(tools::R_user_dir(basename(getwd()), "data"), "packages",
+                    version$platform, getRversion()[, 1:2])
+dir.create(pkgDir, recursive = TRUE, showWarnings = FALSE)
+.libPaths(pkgDir, include.site = FALSE)
+
+## PFC work around
+options("download.file.method" = "wininet")
+
+if (!require("remotes")) {
+  install.packages("remotes")
+}
+
+remotes::install_github("PredictiveEcology/Require@development")
+library(Require)
+
+Require(c("reproducible", "quickPlot", "SpaDES", "reproducible",
+          "SpaDES.core (>=1.1.0)", "SpaDES.tools (>= 1.0.0)",
+          "googledrive", "PredictiveEcology/CBMutils@development",
+          "data.table", "devtools", "lme4"), # comes up with an error so added "devtools'
+        require = c("SpaDES.core", "devtools"), # call `require` only on this package (same as `library`)
+        verbose = 1)
+
+
+# library(SpaDES)
+ library(magrittr) # this is needed to use "%>%" below
 moduleDir <- "modules"
 inputDir <- file.path(moduleDir, "inputs") %>% reproducible::checkPath(create = TRUE)
 outputDir <- file.path(moduleDir, "outputs")
@@ -96,7 +119,7 @@ options(
     spades.outputPath = outputDir,
     spades.modulePath = moduleDir
   )
-
+library(data.table)
 myBiomass <- simInit(times = times, params = parameters, modules = modules,
                  objects = objects)
 
