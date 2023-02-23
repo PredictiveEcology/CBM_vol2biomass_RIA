@@ -221,7 +221,7 @@ Init <- function(sim) {
   # This first If-statement is to catch the "no-province" match
 browser()
   stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin$abreviation, ])
-  if (!length(unique(stable5.2$juris_id)) == length(unique(thisAdmin$abreviation))) {
+  if (length(unique(stable5.2$juris_id)) != length(unique(thisAdmin$abreviation))) {
     ## DANGER HARD CODED: if NFIS changes table 5, this will no longer be valid
     # juris_id: there are only 5/13 possible
     # these are the provinces available: AB BC NB NF NT
