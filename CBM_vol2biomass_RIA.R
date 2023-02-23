@@ -219,8 +219,9 @@ Init <- function(sim) {
   # all provinces. Here we are hard-coding the closest equivalent province to
   # have a complete set.
   # This first If-statement is to catch the "no-province" match
-browser()
   stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin$abreviation, ])
+
+  ## TODO: this is likely not the correct check - verify
   if (length(unique(stable5.2$juris_id)) != length(unique(thisAdmin$abreviation))) {
     ## DANGER HARD CODED: if NFIS changes table 5, this will no longer be valid
     # juris_id: there are only 5/13 possible
@@ -240,6 +241,8 @@ browser()
     thisAdmin5 <- merge(abreviaReplace, thisAdmin)
     thisAdmin5[, c("abreviation", "t5abreviation") := list(t5abreviation, NULL)]
     stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin5$abreviation, ])
+  } else {
+    thisAdmin5 <- thisAdmin
   }
 
   # This second "if-statement" is to catch is the "no-ecozone" match
@@ -278,7 +281,9 @@ browser()
     EcoBoundaryID <- c(8, 11, 15, 16, 17, 18)
     ecoNotInT5 <- c(7, 4, 6, 5, 6, 10)
     ecoReplace <- data.table(ecoNotInT5, EcoBoundaryID)
-    thisAdmin5.1 <- merge(ecoReplace, thisAdmin5, by = EcoBoundaryID) ## TOOD: thisAdmin5 note defined
+
+    ## TODO: this is the wrong merge operation - use ecoNotInT5 ??
+    thisAdmin5.1 <- merge.data.table(ecoReplace, thisAdmin5, by = "EcoBoundaryID")
     stable5 <- as.data.table(stable5[stable5$ecozone %in% thisAdmin5.1$EcoBoundaryID, ])
   }
   if (nrow(stable5) < 1) {
@@ -298,12 +303,12 @@ browser()
   gcMeta <- sim$gcMeta
 
   ## This is for the RIA fire return interval runsL using unmanged curves (VDYP)
-  riaGcMeta <- gcMeta[,.(au_id, tsa, canfi_species, unmanaged_curve_id)]
+  riaGcMeta <- gcMeta[, .(au_id, tsa, canfi_species, unmanaged_curve_id)]
   # this will be slightly different when au_id are not equal to
   # unmanaged_curve_id. For VDYP, those are equal.
   setnames(riaGcMeta,
            c("au_id", "tsa", "unmanaged_curve_id"),
-             c("growth_curve_component_id", "TSAid","growth_curve_id"))
+           c("growth_curve_component_id", "TSAid","growth_curve_id"))
 
 
   # assuming gcMeta has now 6 columns, it needs a 7th: spatial_unit_id. This
@@ -330,10 +335,10 @@ browser()
 
   set(gcMeta, NULL, "gcids", gcids)
 
-  ### TODO CHECK - this is not tested
-  if (length(unique(unique(userGcM3$GrowthCurveComponentID))) !=
-             length(unique(gcMeta$growth_curve_component_id))) {
-    stop("There is a missmatch in the growth curves of the userGcM3 and the gcMeta")
+  ### TODO: CHECK - this is not tested
+  if (length(unique(userGcM3$GrowthCurveComponentID)) !=
+      length(unique(gcMeta$growth_curve_component_id))) {
+    stop("There is a mismatch in the growth curves of the userGcM3 and the gcMeta")
   }
 # RIA still missing columns in gcMeta: species genus and forest_type_id
   gcMeta <- merge.data.table(gcMeta, sim$canfi_species, by = "canfi_species", all.x = TRUE)
