@@ -313,8 +313,8 @@ browser()
   gcThisSim <- unique(sim$spatialDT[,.(growth_curve_component_id, spatial_unit_id, ecozones)])#as.data.table(unique(cbind(sim$spatialUnits, sim$gcids)))
   #names(gcThisSim) <- c("growth_curve_component_id","e")
   setkey(gcThisSim, growth_curve_component_id)
-  setkey(riaGcMeta, growth_curve_component_id) #changed from gcMeta to riaGcMeta
-  gcMeta <- merge(riaGcMeta, gcThisSim) #changed from gcMeta to riaGcMeta # adds ecozone
+  setkey(riaGcMeta, growth_curve_component_id) ## changed from gcMeta to riaGcMeta
+  gcMeta <- merge(riaGcMeta, gcThisSim) ## changed from gcMeta to riaGcMeta # adds ecozone
 
   # curveID are the columns use to make the unique levels in the factor gcids.
   # These factor levels are the link between the pixelGroups and the curve to be
@@ -345,7 +345,6 @@ browser()
   gcMeta[canfi_species == 1211, canfi_species := 1203]
 
   sim$gcMetaAllCols <- gcMeta
-
 
   # START processing curves from m3/ha to tonnes of C/ha then to annual increments
   # per above ground biomass pools -------------------------------------------
