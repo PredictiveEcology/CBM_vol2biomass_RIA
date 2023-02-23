@@ -331,8 +331,8 @@ browser()
   set(gcMeta, NULL, "gcids", gcids)
 
   ### TODO CHECK - this is not tested
-  if (!length(unique(unique(userGcM3$GrowthCurveComponentID)) ==
-              length(unique(gcMeta$growth_curve_component_id)))) {
+  if (length(unique(unique(userGcM3$GrowthCurveComponentID))) !=
+             length(unique(gcMeta$growth_curve_component_id))) {
     stop("There is a missmatch in the growth curves of the userGcM3 and the gcMeta")
   }
 # RIA still missing columns in gcMeta: species genus and forest_type_id
