@@ -261,7 +261,7 @@ Init <- function(sim) {
   # all provinces. Here we are hard-coding the closest equivalent province to
   # have a complete set.
   # This first If-statement is to catch the "no-province" match
-
+browser()
   stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin$abreviation, ])
   if (!length(unique(stable5.2$juris_id)) == length(unique(thisAdmin$abreviation))) {
     ## DANGER HARD CODED: if NFIS changes table 5, this will no longer be valid
@@ -283,6 +283,7 @@ Init <- function(sim) {
     thisAdmin5[, c("abreviation", "t5abreviation") := list(t5abreviation, NULL)]
     stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin5$abreviation, ])
   }
+
   # This second "if-statement" is to catch is the "no-ecozone" match
   ### THIS NEEDS TO BE TESTED
   if (nrow(stable5.2) > 0) {
@@ -319,7 +320,7 @@ Init <- function(sim) {
     EcoBoundaryID <- c(8, 11, 15, 16, 17, 18)
     ecoNotInT5 <- c(7, 4, 6, 5, 6, 10)
     ecoReplace <- data.table(ecoNotInT5, EcoBoundaryID)
-    thisAdmin5.1 <- merge(ecoReplace, thisAdmin5, by = EcoBoundaryID)
+    thisAdmin5.1 <- merge(ecoReplace, thisAdmin5, by = EcoBoundaryID) ## TOOD: thisAdmin5 note defined
     stable5 <- as.data.table(stable5[stable5$ecozone %in% thisAdmin5.1$EcoBoundaryID, ])
   }
   if (nrow(stable5) < 1) {
