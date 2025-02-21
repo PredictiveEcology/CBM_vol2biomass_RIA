@@ -16,7 +16,7 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = deparse(list("README.txt", "CBM_vol2biomass_RIA.Rmd")),
   reqdPkgs = list(
-    "ggplot2", "ggpubr", "mgcv", "quickPlot", "PredictiveEcology/CBMutils (>= 0.0.6)",
+    "ggplot2", "ggpubr", "mgcv", "quickPlot", "PredictiveEcology/CBMutils@development",
     "robustbase", "ggforce"
   ),
   parameters = rbind(
@@ -174,25 +174,25 @@ Init <- function(sim) {
   # user provides userGcM3: incoming cumulative m3/ha
   # plot
   # Test for steps of 1 in the yield curves
-  ageJumps <- sim$userGcM3[, list(jumps = unique(diff(as.numeric(Age)))), by = "GrowthCurveComponentID"]
-  idsWithJumpGT1 <- ageJumps[jumps > 1]$GrowthCurveComponentID
+  ageJumps <- sim$userGcM3[, list(jumps = unique(diff(as.numeric(Age)))), by = "gcids"]
+  idsWithJumpGT1 <- ageJumps[jumps > 1]$gcids
   if (length(idsWithJumpGT1)) {
     missingAboveMin <- sim$userGcM3[, approx(Age, MerchVolume, xout = setdiff(seq(0, max(Age)), Age)),
-                          by = "GrowthCurveComponentID"]
+                          by = "gcids"]
     setnames(missingAboveMin, c("x", "y"), c("Age", "MerchVolume"))
     missingAboveMin <- na.omit(missingAboveMin)
     sim$userGcM3 <- rbindlist(list(sim$userGcM3, missingAboveMin))
-    setorderv(sim$userGcM3, c("GrowthCurveComponentID", "Age"))
+    setorderv(sim$userGcM3, c("gcids", "Age"))
 
     # Assertion
-    ageJumps <- sim$userGcM3[, list(jumps = unique(diff(as.numeric(Age)))), by = "GrowthCurveComponentID"]
-    idsWithJumpGT1 <- ageJumps[jumps > 1]$GrowthCurveComponentID
+    ageJumps <- sim$userGcM3[, list(jumps = unique(diff(as.numeric(Age)))), by = "gcids"]
+    idsWithJumpGT1 <- ageJumps[jumps > 1]$gcids
     if (length(idsWithJumpGT1) > 0)
       stop("There are still yield curves that are not annually resolved")
   }
 
 
-  sim$volCurves <- ggplot(data = sim$userGcM3, aes(x = Age, y = MerchVolume, group = GrowthCurveComponentID, colour = GrowthCurveComponentID)) +
+  sim$volCurves <- ggplot(data = sim$userGcM3, aes(x = Age, y = MerchVolume, group = gcids, colour = gcids)) +
     geom_line() ## TODO: move to plotInit event
   message("User: please look at the curve you provided via sim$volCurves")
 
