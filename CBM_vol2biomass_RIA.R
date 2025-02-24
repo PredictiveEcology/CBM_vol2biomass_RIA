@@ -308,10 +308,6 @@ Init <- function(sim) {
   # id and species. This format is necessary to process the curves and use the
   # resulting increments
   gcMeta <- sim$gcMeta
-  ##TODO: this check is from the SK vol2biomass, it's possible the current RIA table won't have these exact column names. We will have to make sure it does.
-  if (isFALSE(c("gcids", "species") %in% colnames(gcMeta))) {
-    stop("Curve ID or species is missing from gcMeta")
-  }
 
   ## This is for the RIA fire return interval runsL using unmanged curves (VDYP)
   riaGcMeta <- gcMeta[, .(au_id, tsa, canfi_species, unmanaged_curve_id)]
@@ -319,17 +315,16 @@ Init <- function(sim) {
   # unmanaged_curve_id. For VDYP, those are equal.
   setnames(riaGcMeta,
            c("au_id", "tsa", "unmanaged_curve_id"),
-           c("growth_curve_component_id", "TSAid","growth_curve_id")) ##TODO: these names may need to be changed, i.e. growth_curve_id to gcids
+           c("growth_curve_component_id", "TSAid","growth_curve_id")) ##TODO: these names may need to be changed, i.e. growth_curve_component_id to gcids
 
 
   # assuming gcMeta has now 6 columns, it needs a 7th: spatial_unit_id. This
   # will be used in the convertM3biom() fnct to link to the right ecozone
   # and it only needs the gc we are using in this sim.
 
-  gcThisSim <- unique(sim$spatialDT[,.(growth_curve_component_id, spatial_unit_id, ecozones)])#as.data.table(unique(cbind(sim$spatialUnits, sim$gcids)))
-  #names(gcThisSim) <- c("growth_curve_component_id","e")
-  setkey(gcThisSim, growth_curve_component_id)
-  setkey(riaGcMeta, growth_curve_component_id) ## changed from gcMeta to riaGcMeta
+  gcThisSim <- unique(sim$spatialDT[,.(gcids, spatial_unit_id, ecozones)])
+  setkey(gcThisSim, gcids)
+  setkey(riaGcMeta, gcids) ## changed from gcMeta to riaGcMeta
   gcMeta <- merge(riaGcMeta, gcThisSim) ## changed from gcMeta to riaGcMeta # adds ecozone
 
   # curveID are the columns use to make the unique levels in the factor gcids.
@@ -346,18 +341,22 @@ Init <- function(sim) {
 
   set(gcMeta, NULL, "gcids", gcids)
 
-  ### TODO: CHECK - this is not tested
-  if (length(unique(userGcM3$GrowthCurveComponentID)) !=
-      length(unique(gcMeta$growth_curve_component_id))) {
-    stop("There is a mismatch in the growth curves of the userGcM3 and the gcMeta")
+  setkey(gcMeta, gcids)
+  if (!unique(unique(userGcM3$gcids) == unique(gcMeta$gcids))) {
+    stop("There is a missmatch in the growth curves of the userGcM3 and the gcMeta")
   }
+
 # RIA still missing columns in gcMeta: species genus and forest_type_id
   gcMeta <- merge.data.table(gcMeta, sim$canfi_species, by = "canfi_species", all.x = TRUE)
   gcMeta[, species := NULL]
   setnames(gcMeta, "name", "species")
+  ##TODO: this check is from the SK vol2biomass, it's possible the current RIA table won't have these exact column names. We will have to make sure it does.
+  if (isFALSE(c("gcids", "species") %in% colnames(gcMeta))) {
+    stop("Curve ID or species is missing from gcMeta")
+  }
 
   ################
-  warning("Modifying canfi_species 1211 ecozone to 1203")
+  warning("Modifying canfi_species 1211 ecozone to 1203") ##TODO: why do we do this?
   gcMeta[canfi_species == 1211, canfi_species := 1203]
 
   sim$gcMetaAllCols <- gcMeta
