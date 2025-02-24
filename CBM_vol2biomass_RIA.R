@@ -209,91 +209,98 @@ Init <- function(sim) {
 
   thisAdmin <- sim$cbmAdmin[sim$cbmAdmin$SpatialUnitID %in% spu & sim$cbmAdmin$EcoBoundaryID %in% eco, ]
 
-  # "s" table for small table3, 4, 5, 6, 7 - tables limited to the targeted
-  # ecozones and jurisdictions
-  stable3 <- as.data.table(sim$table3[sim$table3$juris_id %in% thisAdmin$abreviation &
-    sim$table3$ecozone %in% eco, ])
-  stable4 <- as.data.table(sim$table4[sim$table4$juris_id %in% thisAdmin$abreviation &
-    sim$table4$ecozone %in% eco, ])
-  # table5 is different since there was not have enough data to fit models for
-  # all provinces. Here we are hard-coding the closest equivalent province to
-  # have a complete set.
-  # This first If-statement is to catch the "no-province" match
-  stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin$abreviation, ])
+  # START reducing Biomass model parameter tables -----------------------------------------------
+  # not all ecozones are in tables 3-7. There may be some mismatch here.
+  # these are the ecozones in the tables
+  # id               name
+  # 4       Taiga Plains
+  # 5  Taiga Shield West
+  # 6 Boreal Shield West
+  # 7  Atlantic Maritime
+  # 9      Boreal Plains
+  # 10  Subhumid Prairies
+  # 12  Boreal Cordillera
+  # 13   Pacific Maritime
+  # 14 Montane Cordillera
+  # these are the ones that are not.
+  # id               name
+  # 8   Mixedwood Plains  - 7  Atlantic Maritime
+  # 11   Taiga Cordillera - 4 taiga plains
+  # 15      Hudson Plains - 6 Boreal Shield West
+  # 16  Taiga Shield East - 5  Taiga Shield West
+  # 17 Boreal Shield East - 6 Boreal Shield West
+  # 18  Semiarid Prairies - 10  Subhumid Prairies
 
-  ## TODO: this is likely not the correct check - verify
-  if (length(unique(stable5.2$juris_id)) != length(unique(thisAdmin$abreviation))) {
-    ## DANGER HARD CODED: if NFIS changes table 5, this will no longer be valid
-    # juris_id: there are only 5/13 possible
-    # these are the provinces available: AB BC NB NF NT
-    # for the non match these would be the equivalent
-    # "PE" - NB
-    # "QC" - NB
-    # "ON" - NB
-    # "MB" - AB
-    # "SK" - AB
-    # "YK" - NT
-    # "NU" - NT
-    abreviation <- c("PE", "QC", "ON", "MB", "SK", "YK", "NU")
-    t5abreviation <- c("NB", "NB", "NB", "AB", "AB", "NT", "NT")
-    abreviaReplace <- data.table(abreviation, t5abreviation)
-    # replace the abbreviations and select
-    thisAdmin5 <- merge(abreviaReplace, thisAdmin)
-    thisAdmin5[, c("abreviation", "t5abreviation") := list(t5abreviation, NULL)]
-    stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin5$abreviation, ])
-  } else {
-    thisAdmin5 <- thisAdmin
+  ecoNotInT <- c(8, 11, 15, 16, 17, 18)
+  if (any(eco %in% ecoNotInT)) {
+    EcoBoundaryID <- c(7, 4, 6, 5, 6, 10)
+    ecoReplace <- data.table(ecoNotInT, EcoBoundaryID)
+    thisAdmin <- merge(ecoReplace, thisAdmin, by.x = "ecoNotInT", by.y = "EcoBoundaryID")
   }
 
+  if (any(eco %in% ecoNotInT)) {
+    stable3 <- as.data.table(sim$table3[sim$table3$juris_id %in% thisAdmin$abreviation &
+                                          sim$table3$ecozone %in% thisAdmin$EcoBoundaryID, ])
+    stable4 <- as.data.table(sim$table4[sim$table4$juris_id %in% thisAdmin$abreviation &
+                                          sim$table4$ecozone %in% thisAdmin$EcoBoundaryID, ])
+  } else {
+    stable3 <- as.data.table(sim$table3[sim$table3$juris_id %in% thisAdmin$abreviation &
+                                          sim$table3$ecozone %in% eco, ])
+    stable4 <- as.data.table(sim$table4[sim$table4$juris_id %in% thisAdmin$abreviation &
+                                          sim$table4$ecozone %in% eco, ])
+  }
+
+  abreviation <- c("PE", "QC", "ON", "MB", "SK", "YK", "NU", "NS")
+  ## DANGER HARD CODED: if NFIS changes table 5, this will no longer be valid
+  # juris_id: there are only 5/13 possible
+  # these are the provinces available: AB BC NB NF NT
+  # for the non match these would be the equivalent
+  # "PE" - NB
+  # "QC" - NB
+  # "ON" - NB
+  # "MB" - AB
+  # "SK" - AB
+  # "YK" - NT
+  # "NU" - NT
+  # "NS" - NB
+  if (any(thisAdmin$abreviation %in% abreviation)) {
+    t5abreviation <- c("NB", "NL", "NL", "AB", "AB", "NT", "NT", "NB")
+    abreviationReplace <- data.table(abreviation, t5abreviation)
+    # replace the abbreviations and select
+    thisAdmin5 <- merge(abreviationReplace, thisAdmin)
+    thisAdmin5[, c("abreviation", "t5abreviation") := list(t5abreviation, NULL)]
+    stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin5$abreviation, ])
+    stable5 <- stable5.2[ecozone %in% thisAdmin$EcoBoundaryID, ]
+  } else {
+    stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin$abreviation, ])
+    stable5 <- stable5.2[ecozone %in% thisAdmin$EcoBoundaryID, ]
+  }
   # This second "if-statement" is to catch is the "no-ecozone" match
   ### THIS NEEDS TO BE TESTED
   if (nrow(stable5.2) > 0) {
-    stable5 <- stable5.2[ecozone %in% unique(eco), ]
+    stable5 <- stable5.2[ecozone %in% thisAdmin$EcoBoundaryID, ]
   } else {
     stop(
       "There are no matches found for the parameters needed to execute the Boudewyn models.",
       "Please manually find matches for table 5."
     )
   }
-  if (!length(eco) == length(unique(stable5$ecozone))) {
-    # there are 9/15 ecozones
-    # These are the ones in table5
-    # id               name
-    # 4       Taiga Plains
-    # 5  Taiga Shield West
-    # 6 Boreal Shield West
-    # 7  Atlantic Maritime
-    # 9      Boreal Plains
-    # 10  Subhumid Prairies
-    # 12  Boreal Cordillera
-    # 13   Pacific Maritime
-    # 14 Montane Cordillera
 
-    # these are the ones that are not
-    # id               name
-    # 8   Mixedwood Plains  - 7  Atlantic Maritime
-    # 11   Taiga Cordillera - 4 taiga plains
-    # 15      Hudson Plains - 6 Boreal Shield West
-    # 16  Taiga Shield East - 5  Taiga Shield West
-    # 17 Boreal Shield East - 6 Boreal Shield West
-    # 18  Semiarid Prairies - 10  Subhumid Prairies
-
-    EcoBoundaryID <- c(8, 11, 15, 16, 17, 18)
-    ecoNotInT5 <- c(7, 4, 6, 5, 6, 10)
-    ecoReplace <- data.table(ecoNotInT5, EcoBoundaryID)
-
-    ## TODO: this is the wrong merge operation - use ecoNotInT5 ??
-    thisAdmin5.1 <- merge.data.table(ecoReplace, thisAdmin5, by = "EcoBoundaryID")
-    stable5 <- as.data.table(stable5[stable5$ecozone %in% thisAdmin5.1$EcoBoundaryID, ])
-  }
   if (nrow(stable5) < 1) {
     stop("There is a problem finding a parameter match in table 5.")
   }
 
-  stable6 <- as.data.table(sim$table6[sim$table6$juris_id %in% thisAdmin$abreviation &
-    sim$table6$ecozone %in% eco, ])
-  stable7 <- as.data.table(sim$table7[sim$table7$juris_id %in% thisAdmin$abreviation &
-    sim$table6$ecozone %in% eco, ])
+  if (any(eco %in% ecoNotInT)) {
+    stable6 <- as.data.table(sim$table6[sim$table6$juris_id %in% thisAdmin$abreviation &
+                                          sim$table6$ecozone %in% thisAdmin$EcoBoundaryID, ])
+    stable7 <- as.data.table(sim$table7[sim$table7$juris_id %in% thisAdmin$abreviation &
+                                          sim$table7$ecozone %in% thisAdmin$EcoBoundaryID, ])
+  } else {
+    stable6 <- as.data.table(sim$table6[sim$table6$juris_id %in% thisAdmin$abreviation &
+                                          sim$table6$ecozone %in% eco, ])
+    stable7 <- as.data.table(sim$table7[sim$table7$juris_id %in% thisAdmin$abreviation &
+                                          sim$table7$ecozone %in% eco, ])
+  }
   # END reducing Biomass model parameter tables -----------------------------------------------
 
   # Read-in user provided meta data for growth curves. This could be a complete
