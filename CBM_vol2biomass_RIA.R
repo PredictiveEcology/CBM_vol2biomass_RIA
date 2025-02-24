@@ -399,7 +399,13 @@ Init <- function(sim) {
 
   # 3. Plot the curves that are directly out of the Boudewyn-translation
   # Usually, these need to be, at a minimum, smoothed out.
-  figPath <- file.path(modulePath(sim), currentModule(sim), "figures")
+  if (!is.null(P(sim)$outputFigurePath) || !is.na(P(sim)$outputFigurePath)){
+    figPath <- file.path(outputPath(sim), "CBM_vol2biomass_figures")
+    dir.create(figPath, recursive = TRUE, showWarnings = FALSE)
+  }else{
+    figPath <- P(sim)$outputFigurePath
+    if (!file.exists(figPath)) stop("Output figure path not found: ", figPath)
+  }
 
   # plotting and save the plots of the raw-translation in the sim$ don't really
   # need this b/c the next use of m3ToBiomPlots fnct plots all 6 curves, 3
@@ -407,19 +413,21 @@ Init <- function(sim) {
   # parameter finding in the cumPoolsSmooth fnct. Leaving these lines here as
   # exploration tools.
   # if (!is.na(P(sim)$.plotInitialTime))
-  # sim$plotsRawCumulativeBiomass <- Cache(m3ToBiomPlots, inc = cumPoolsRaw,
-  #                                        path = figPath,
-  #                                        filenameBase = "rawCumBiomass_")
+  sim$plotsRawCumulativeBiomass <- m3ToBiomPlots( inc = cumPoolsRaw,
+                                                  path = figPath,
+                                                  filenameBase = "rawCumBiomass_")
 
   # Fixing of non-smooth curves
 
-  cumPoolsClean <- Cache(cumPoolsSmooth, cumPoolsRaw)
+  cumPoolsClean <- Cache(cumPoolsSmooth, cumPoolsRaw
+                         ) |> Cache()
 
   # a[, totMerch := totMerchNew]
   if (!is.na(P(sim)$.plotInitialTime))
     figs <- Cache(m3ToBiomPlots, inc = cumPoolsClean,
                 path = figPath,
-                filenameBase = "cumPools_smoothed_postChapmanRichards")
+                filenameBase = "cumPools_smoothed_postChapmanRichards"
+                ) |> Cache()
 
   set(cumPoolsClean, NULL, colNames, NULL)
   colNamesNew <- grep(cbmAboveGroundPoolColNames, colnames(cumPoolsClean), value = TRUE)
@@ -431,8 +439,7 @@ Init <- function(sim) {
   cumPoolsClean[, (incCols) := lapply(.SD, function(x) c(NA, diff(x))), .SDcols = colNames,
                 by = eval("gcids")]
   colsToUse33 <- c("age", "gcids", incCols)
-  if (!is.na(P(sim)$.plotInitialTime))
-    rawIncPlots <- Cache(m3ToBiomPlots, inc = cumPoolsClean[, ..colsToUse33],
+  rawIncPlots <- Cache(m3ToBiomPlots, inc = cumPoolsClean[, ..colsToUse33],
                        path = figPath,
                        title = "Smoothed increments merch fol other by gc id",
                        filenameBase = "Increments")
@@ -442,7 +449,7 @@ Init <- function(sim) {
 
   sim$cumPoolsClean <- cumPoolsClean
 
-  colsToUseForestType <- c("growth_curve_component_id", "forest_type_id", "gcids")
+  colsToUseForestType <- c("growth_curve_component_id", "forest_type_id", "gcids") ##TODO: only c("forest_type_id", "gcids") is used in SK
   forestType <- gcMeta[, ..colsToUseForestType]
   #       #FYI:
   #       # cbmTables$forest_type
@@ -453,90 +460,60 @@ Init <- function(sim) {
   #       # 4  9 Not Applicable
 
   setkeyv(forestType, "gcids")
-  cumPoolsClean <- merge(cumPoolsClean, forestType, by = "gcids")
-  swCols <- c("swmerch", "swfol", "swother")
-  hwCols <- c("hwmerch", "hwfol", "hwother")
+  cumPoolsClean <- merge(cumPoolsClean, forestType, by = "gcids",
+                         all.x = TRUE, all.y = FALSE)
 
-  totalIncrementsSmooth <- cumPoolsClean[forest_type_id == 1, (swCols) := list((incMerch), (incFol), (incOther))]
-  totalIncrementsSmooth <- totalIncrementsSmooth[forest_type_id == 3, (hwCols) := list((incMerch), (incFol), (incOther))]
-  totalIncrementsSmooth[is.na(totalIncrementsSmooth)] <- 0
-  outCols <- c("incMerch", "incFol", "incOther", "forest_type_id")
-  incCols <- c(swCols, hwCols)
-  totalIncrementsSmooth[, (outCols) := NULL]
-  increments <- totalIncrementsSmooth[, (incCols) := list(
-    swmerch / 2, swfol / 2,
-    swother / 2, hwmerch / 2, hwfol / 2, hwother / 2
+
+  ## this is how it was done in the old RIA version.
+  # swCols <- c("swmerch", "swfol", "swother")
+  # hwCols <- c("hwmerch", "hwfol", "hwother")
+  #
+  # totalIncrementsSmooth <- cumPoolsClean[forest_type_id == 1, (swCols) := list((incMerch), (incFol), (incOther))]
+  # totalIncrementsSmooth <- totalIncrementsSmooth[forest_type_id == 3, (hwCols) := list((incMerch), (incFol), (incOther))]
+  # totalIncrementsSmooth[is.na(totalIncrementsSmooth)] <- 0
+  # outCols <- c("incMerch", "incFol", "incOther", "forest_type_id")
+  # incCols <- c(swCols, hwCols)
+  # totalIncrementsSmooth[, (outCols) := NULL]
+  # increments <- totalIncrementsSmooth[, (incCols) := list(
+  #   swmerch / 2, swfol / 2,
+  #   swother / 2, hwmerch / 2, hwfol / 2, hwother / 2
+  # )]
+  # setorderv(increments, c("gcids", "age"))
+  #
+  # incColKeep <- c("id", "age", incCols)
+  # set(increments, NULL, "id", as.numeric(increments[["gcids"]]))
+  # set(increments, NULL, setdiff(colnames(increments), incColKeep), NULL)
+  # setcolorder(increments, incColKeep)
+  #
+  ## this is how it is done in SK, will need to see which is best
+  outCols <- c("id", "ecozone", "totMerch", "fol", "other")
+  cumPoolsClean[, (outCols) := NULL]
+  keepCols <- c("gcids", "age", "merch_inc", "foliage_inc", "other_inc", "forest_type_id")
+  incCols <- c("merch_inc", "foliage_inc", "other_inc")
+  setnames(cumPoolsClean,names(cumPoolsClean),
+           keepCols)
+  increments <- cumPoolsClean[, (incCols) := list(
+    merch_inc, foliage_inc, other_inc
   )]
   setorderv(increments, c("gcids", "age"))
 
-  incColKeep <- c("id", "age", incCols)
-  set(increments, NULL, "id", as.numeric(increments[["gcids"]]))
-  set(increments, NULL, setdiff(colnames(increments), incColKeep), NULL)
-  setcolorder(increments, incColKeep)
 
   # Assertions
   if (isTRUE(P(sim)$doAssertions)) {
     # All should have same min age
-    if (length(unique(increments[, min(age), by = "id"]$V1)) != 1)
+    if (length(unique(increments[, min(age), by = "forest_type_id"]$V1)) != 1)
       stop("All ages should start at the same age for each curveID")
-    if (length(unique(increments[, max(age), by = "id"]$V1)) != 1)
+    if (length(unique(increments[, max(age), by = "forest_type_id"]$V1)) != 1)
       stop("All ages should end at the same age for each curveID")
   }
+  ## replace increments that are NA with 0s
 
-  sim$growth_increments <- as.matrix(increments)
+  increments[is.na(increments), ] <- 0
+  sim$growth_increments <- increments
   # END process growth curves -------------------------------------------------------------------------------
 
-  sim$gcHash <- matrixHash(sim$growth_increments)
-  # create a nested hash (by gcid/by age)
-  ## used in SpinUp function later...
-  for (item in ls(sim$gcHash)) {
-    sim$gcHash[[item]] <- hash(sim$gcHash[[item]])
-  }
-
   # ! ----- STOP EDITING ----- ! #
 
-  return(invisible(sim))
-}
-
-### template for save events
-Save <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # do stuff for this event
-  sim <- saveFiles(sim)
-
-  # ! ----- STOP EDITING ----- ! #
-  return(invisible(sim))
-}
-
-### template for plot events
-plotFun <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # do stuff for this event
-  # Plot(sim$object)
-
-  # ! ----- STOP EDITING ----- ! #
-  return(invisible(sim))
-}
-
-### template for your event1
-Event1 <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # THE NEXT TWO LINES ARE FOR DUMMY UNIT TESTS; CHANGE OR DELETE THEM.
-  # sim$event1Test1 <- " this is test for event 1. " # for dummy unit test
-  # sim$event1Test2 <- 999 # for dummy unit test
-
-  # ! ----- STOP EDITING ----- ! #
-  return(invisible(sim))
-}
-
-### template for your event2
-Event2 <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # THE NEXT TWO LINES ARE FOR DUMMY UNIT TESTS; CHANGE OR DELETE THEM.
-  # sim$event2Test1 <- " this is test for event 2. " # for dummy unit test
-  # sim$event2Test2 <- 777  # for dummy unit test
-
-  # ! ----- STOP EDITING ----- ! #
   return(invisible(sim))
 }
 
