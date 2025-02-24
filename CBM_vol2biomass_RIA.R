@@ -308,6 +308,10 @@ Init <- function(sim) {
   # id and species. This format is necessary to process the curves and use the
   # resulting increments
   gcMeta <- sim$gcMeta
+  ##TODO: this check is from the SK vol2biomass, it's possible the current RIA table won't have these exact column names. We will have to make sure it does.
+  if (isFALSE(c("gcids", "species") %in% colnames(gcMeta))) {
+    stop("Curve ID or species is missing from gcMeta")
+  }
 
   ## This is for the RIA fire return interval runsL using unmanged curves (VDYP)
   riaGcMeta <- gcMeta[, .(au_id, tsa, canfi_species, unmanaged_curve_id)]
@@ -315,7 +319,7 @@ Init <- function(sim) {
   # unmanaged_curve_id. For VDYP, those are equal.
   setnames(riaGcMeta,
            c("au_id", "tsa", "unmanaged_curve_id"),
-           c("growth_curve_component_id", "TSAid","growth_curve_id"))
+           c("growth_curve_component_id", "TSAid","growth_curve_id")) ##TODO: these names may need to be changed, i.e. growth_curve_id to gcids
 
 
   # assuming gcMeta has now 6 columns, it needs a 7th: spatial_unit_id. This
