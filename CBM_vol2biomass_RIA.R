@@ -16,7 +16,7 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = deparse(list("README.txt", "CBM_vol2biomass_RIA.Rmd")),
   reqdPkgs = list(
-    "ggplot2", "ggpubr", "mgcv", "quickPlot", "PredictiveEcology/CBMutils (>= 0.0.6)",
+    "ggplot2", "ggpubr", "mgcv", "quickPlot", "PredictiveEcology/CBMutils@development",
     "robustbase", "ggforce"
   ),
   parameters = rbind(
@@ -174,25 +174,25 @@ Init <- function(sim) {
   # user provides userGcM3: incoming cumulative m3/ha
   # plot
   # Test for steps of 1 in the yield curves
-  ageJumps <- sim$userGcM3[, list(jumps = unique(diff(as.numeric(Age)))), by = "GrowthCurveComponentID"]
-  idsWithJumpGT1 <- ageJumps[jumps > 1]$GrowthCurveComponentID
+  ageJumps <- sim$userGcM3[, list(jumps = unique(diff(as.numeric(Age)))), by = "gcids"]
+  idsWithJumpGT1 <- ageJumps[jumps > 1]$gcids
   if (length(idsWithJumpGT1)) {
     missingAboveMin <- sim$userGcM3[, approx(Age, MerchVolume, xout = setdiff(seq(0, max(Age)), Age)),
-                          by = "GrowthCurveComponentID"]
+                          by = "gcids"]
     setnames(missingAboveMin, c("x", "y"), c("Age", "MerchVolume"))
     missingAboveMin <- na.omit(missingAboveMin)
     sim$userGcM3 <- rbindlist(list(sim$userGcM3, missingAboveMin))
-    setorderv(sim$userGcM3, c("GrowthCurveComponentID", "Age"))
+    setorderv(sim$userGcM3, c("gcids", "Age"))
 
     # Assertion
-    ageJumps <- sim$userGcM3[, list(jumps = unique(diff(as.numeric(Age)))), by = "GrowthCurveComponentID"]
-    idsWithJumpGT1 <- ageJumps[jumps > 1]$GrowthCurveComponentID
+    ageJumps <- sim$userGcM3[, list(jumps = unique(diff(as.numeric(Age)))), by = "gcids"]
+    idsWithJumpGT1 <- ageJumps[jumps > 1]$gcids
     if (length(idsWithJumpGT1) > 0)
       stop("There are still yield curves that are not annually resolved")
   }
 
 
-  sim$volCurves <- ggplot(data = sim$userGcM3, aes(x = Age, y = MerchVolume, group = GrowthCurveComponentID, colour = GrowthCurveComponentID)) +
+  sim$volCurves <- ggplot(data = sim$userGcM3, aes(x = Age, y = MerchVolume, group = gcids, colour = gcids)) +
     geom_line() ## TODO: move to plotInit event
   message("User: please look at the curve you provided via sim$volCurves")
 
@@ -209,91 +209,98 @@ Init <- function(sim) {
 
   thisAdmin <- sim$cbmAdmin[sim$cbmAdmin$SpatialUnitID %in% spu & sim$cbmAdmin$EcoBoundaryID %in% eco, ]
 
-  # "s" table for small table3, 4, 5, 6, 7 - tables limited to the targeted
-  # ecozones and jurisdictions
-  stable3 <- as.data.table(sim$table3[sim$table3$juris_id %in% thisAdmin$abreviation &
-    sim$table3$ecozone %in% eco, ])
-  stable4 <- as.data.table(sim$table4[sim$table4$juris_id %in% thisAdmin$abreviation &
-    sim$table4$ecozone %in% eco, ])
-  # table5 is different since there was not have enough data to fit models for
-  # all provinces. Here we are hard-coding the closest equivalent province to
-  # have a complete set.
-  # This first If-statement is to catch the "no-province" match
-  stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin$abreviation, ])
+  # START reducing Biomass model parameter tables -----------------------------------------------
+  # not all ecozones are in tables 3-7. There may be some mismatch here.
+  # these are the ecozones in the tables
+  # id               name
+  # 4       Taiga Plains
+  # 5  Taiga Shield West
+  # 6 Boreal Shield West
+  # 7  Atlantic Maritime
+  # 9      Boreal Plains
+  # 10  Subhumid Prairies
+  # 12  Boreal Cordillera
+  # 13   Pacific Maritime
+  # 14 Montane Cordillera
+  # these are the ones that are not.
+  # id               name
+  # 8   Mixedwood Plains  - 7  Atlantic Maritime
+  # 11   Taiga Cordillera - 4 taiga plains
+  # 15      Hudson Plains - 6 Boreal Shield West
+  # 16  Taiga Shield East - 5  Taiga Shield West
+  # 17 Boreal Shield East - 6 Boreal Shield West
+  # 18  Semiarid Prairies - 10  Subhumid Prairies
 
-  ## TODO: this is likely not the correct check - verify
-  if (length(unique(stable5.2$juris_id)) != length(unique(thisAdmin$abreviation))) {
-    ## DANGER HARD CODED: if NFIS changes table 5, this will no longer be valid
-    # juris_id: there are only 5/13 possible
-    # these are the provinces available: AB BC NB NF NT
-    # for the non match these would be the equivalent
-    # "PE" - NB
-    # "QC" - NB
-    # "ON" - NB
-    # "MB" - AB
-    # "SK" - AB
-    # "YK" - NT
-    # "NU" - NT
-    abreviation <- c("PE", "QC", "ON", "MB", "SK", "YK", "NU")
-    t5abreviation <- c("NB", "NB", "NB", "AB", "AB", "NT", "NT")
-    abreviaReplace <- data.table(abreviation, t5abreviation)
-    # replace the abbreviations and select
-    thisAdmin5 <- merge(abreviaReplace, thisAdmin)
-    thisAdmin5[, c("abreviation", "t5abreviation") := list(t5abreviation, NULL)]
-    stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin5$abreviation, ])
-  } else {
-    thisAdmin5 <- thisAdmin
+  ecoNotInT <- c(8, 11, 15, 16, 17, 18)
+  if (any(eco %in% ecoNotInT)) {
+    EcoBoundaryID <- c(7, 4, 6, 5, 6, 10)
+    ecoReplace <- data.table(ecoNotInT, EcoBoundaryID)
+    thisAdmin <- merge(ecoReplace, thisAdmin, by.x = "ecoNotInT", by.y = "EcoBoundaryID")
   }
 
+  if (any(eco %in% ecoNotInT)) {
+    stable3 <- as.data.table(sim$table3[sim$table3$juris_id %in% thisAdmin$abreviation &
+                                          sim$table3$ecozone %in% thisAdmin$EcoBoundaryID, ])
+    stable4 <- as.data.table(sim$table4[sim$table4$juris_id %in% thisAdmin$abreviation &
+                                          sim$table4$ecozone %in% thisAdmin$EcoBoundaryID, ])
+  } else {
+    stable3 <- as.data.table(sim$table3[sim$table3$juris_id %in% thisAdmin$abreviation &
+                                          sim$table3$ecozone %in% eco, ])
+    stable4 <- as.data.table(sim$table4[sim$table4$juris_id %in% thisAdmin$abreviation &
+                                          sim$table4$ecozone %in% eco, ])
+  }
+
+  abreviation <- c("PE", "QC", "ON", "MB", "SK", "YK", "NU", "NS")
+  ## DANGER HARD CODED: if NFIS changes table 5, this will no longer be valid
+  # juris_id: there are only 5/13 possible
+  # these are the provinces available: AB BC NB NF NT
+  # for the non match these would be the equivalent
+  # "PE" - NB
+  # "QC" - NB
+  # "ON" - NB
+  # "MB" - AB
+  # "SK" - AB
+  # "YK" - NT
+  # "NU" - NT
+  # "NS" - NB
+  if (any(thisAdmin$abreviation %in% abreviation)) {
+    t5abreviation <- c("NB", "NL", "NL", "AB", "AB", "NT", "NT", "NB")
+    abreviationReplace <- data.table(abreviation, t5abreviation)
+    # replace the abbreviations and select
+    thisAdmin5 <- merge(abreviationReplace, thisAdmin)
+    thisAdmin5[, c("abreviation", "t5abreviation") := list(t5abreviation, NULL)]
+    stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin5$abreviation, ])
+    stable5 <- stable5.2[ecozone %in% thisAdmin$EcoBoundaryID, ]
+  } else {
+    stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin$abreviation, ])
+    stable5 <- stable5.2[ecozone %in% thisAdmin$EcoBoundaryID, ]
+  }
   # This second "if-statement" is to catch is the "no-ecozone" match
   ### THIS NEEDS TO BE TESTED
   if (nrow(stable5.2) > 0) {
-    stable5 <- stable5.2[ecozone %in% unique(eco), ]
+    stable5 <- stable5.2[ecozone %in% thisAdmin$EcoBoundaryID, ]
   } else {
     stop(
       "There are no matches found for the parameters needed to execute the Boudewyn models.",
       "Please manually find matches for table 5."
     )
   }
-  if (!length(eco) == length(unique(stable5$ecozone))) {
-    # there are 9/15 ecozones
-    # These are the ones in table5
-    # id               name
-    # 4       Taiga Plains
-    # 5  Taiga Shield West
-    # 6 Boreal Shield West
-    # 7  Atlantic Maritime
-    # 9      Boreal Plains
-    # 10  Subhumid Prairies
-    # 12  Boreal Cordillera
-    # 13   Pacific Maritime
-    # 14 Montane Cordillera
 
-    # these are the ones that are not
-    # id               name
-    # 8   Mixedwood Plains  - 7  Atlantic Maritime
-    # 11   Taiga Cordillera - 4 taiga plains
-    # 15      Hudson Plains - 6 Boreal Shield West
-    # 16  Taiga Shield East - 5  Taiga Shield West
-    # 17 Boreal Shield East - 6 Boreal Shield West
-    # 18  Semiarid Prairies - 10  Subhumid Prairies
-
-    EcoBoundaryID <- c(8, 11, 15, 16, 17, 18)
-    ecoNotInT5 <- c(7, 4, 6, 5, 6, 10)
-    ecoReplace <- data.table(ecoNotInT5, EcoBoundaryID)
-
-    ## TODO: this is the wrong merge operation - use ecoNotInT5 ??
-    thisAdmin5.1 <- merge.data.table(ecoReplace, thisAdmin5, by = "EcoBoundaryID")
-    stable5 <- as.data.table(stable5[stable5$ecozone %in% thisAdmin5.1$EcoBoundaryID, ])
-  }
   if (nrow(stable5) < 1) {
     stop("There is a problem finding a parameter match in table 5.")
   }
 
-  stable6 <- as.data.table(sim$table6[sim$table6$juris_id %in% thisAdmin$abreviation &
-    sim$table6$ecozone %in% eco, ])
-  stable7 <- as.data.table(sim$table7[sim$table7$juris_id %in% thisAdmin$abreviation &
-    sim$table6$ecozone %in% eco, ])
+  if (any(eco %in% ecoNotInT)) {
+    stable6 <- as.data.table(sim$table6[sim$table6$juris_id %in% thisAdmin$abreviation &
+                                          sim$table6$ecozone %in% thisAdmin$EcoBoundaryID, ])
+    stable7 <- as.data.table(sim$table7[sim$table7$juris_id %in% thisAdmin$abreviation &
+                                          sim$table7$ecozone %in% thisAdmin$EcoBoundaryID, ])
+  } else {
+    stable6 <- as.data.table(sim$table6[sim$table6$juris_id %in% thisAdmin$abreviation &
+                                          sim$table6$ecozone %in% eco, ])
+    stable7 <- as.data.table(sim$table7[sim$table7$juris_id %in% thisAdmin$abreviation &
+                                          sim$table7$ecozone %in% eco, ])
+  }
   # END reducing Biomass model parameter tables -----------------------------------------------
 
   # Read-in user provided meta data for growth curves. This could be a complete
@@ -308,17 +315,16 @@ Init <- function(sim) {
   # unmanaged_curve_id. For VDYP, those are equal.
   setnames(riaGcMeta,
            c("au_id", "tsa", "unmanaged_curve_id"),
-           c("growth_curve_component_id", "TSAid","growth_curve_id"))
+           c("growth_curve_component_id", "TSAid","growth_curve_id")) ##TODO: these names may need to be changed, i.e. growth_curve_component_id to gcids
 
 
   # assuming gcMeta has now 6 columns, it needs a 7th: spatial_unit_id. This
   # will be used in the convertM3biom() fnct to link to the right ecozone
   # and it only needs the gc we are using in this sim.
 
-  gcThisSim <- unique(sim$spatialDT[,.(growth_curve_component_id, spatial_unit_id, ecozones)])#as.data.table(unique(cbind(sim$spatialUnits, sim$gcids)))
-  #names(gcThisSim) <- c("growth_curve_component_id","e")
-  setkey(gcThisSim, growth_curve_component_id)
-  setkey(riaGcMeta, growth_curve_component_id) ## changed from gcMeta to riaGcMeta
+  gcThisSim <- unique(sim$spatialDT[,.(gcids, spatial_unit_id, ecozones)])
+  setkey(gcThisSim, gcids)
+  setkey(riaGcMeta, gcids) ## changed from gcMeta to riaGcMeta
   gcMeta <- merge(riaGcMeta, gcThisSim) ## changed from gcMeta to riaGcMeta # adds ecozone
 
   # curveID are the columns use to make the unique levels in the factor gcids.
@@ -335,18 +341,22 @@ Init <- function(sim) {
 
   set(gcMeta, NULL, "gcids", gcids)
 
-  ### TODO: CHECK - this is not tested
-  if (length(unique(userGcM3$GrowthCurveComponentID)) !=
-      length(unique(gcMeta$growth_curve_component_id))) {
-    stop("There is a mismatch in the growth curves of the userGcM3 and the gcMeta")
+  setkey(gcMeta, gcids)
+  if (!unique(unique(userGcM3$gcids) == unique(gcMeta$gcids))) {
+    stop("There is a missmatch in the growth curves of the userGcM3 and the gcMeta")
   }
+
 # RIA still missing columns in gcMeta: species genus and forest_type_id
   gcMeta <- merge.data.table(gcMeta, sim$canfi_species, by = "canfi_species", all.x = TRUE)
   gcMeta[, species := NULL]
   setnames(gcMeta, "name", "species")
+  ##TODO: this check is from the SK vol2biomass, it's possible the current RIA table won't have these exact column names. We will have to make sure it does.
+  if (isFALSE(c("gcids", "species") %in% colnames(gcMeta))) {
+    stop("Curve ID or species is missing from gcMeta")
+  }
 
   ################
-  warning("Modifying canfi_species 1211 ecozone to 1203")
+  warning("Modifying canfi_species 1211 ecozone to 1203") ##TODO: why do we do this?
   gcMeta[canfi_species == 1211, canfi_species := 1203]
 
   sim$gcMetaAllCols <- gcMeta
@@ -389,7 +399,13 @@ Init <- function(sim) {
 
   # 3. Plot the curves that are directly out of the Boudewyn-translation
   # Usually, these need to be, at a minimum, smoothed out.
-  figPath <- file.path(modulePath(sim), currentModule(sim), "figures")
+  if (!is.null(P(sim)$outputFigurePath) || !is.na(P(sim)$outputFigurePath)){
+    figPath <- file.path(outputPath(sim), "CBM_vol2biomass_figures")
+    dir.create(figPath, recursive = TRUE, showWarnings = FALSE)
+  }else{
+    figPath <- P(sim)$outputFigurePath
+    if (!file.exists(figPath)) stop("Output figure path not found: ", figPath)
+  }
 
   # plotting and save the plots of the raw-translation in the sim$ don't really
   # need this b/c the next use of m3ToBiomPlots fnct plots all 6 curves, 3
@@ -397,19 +413,21 @@ Init <- function(sim) {
   # parameter finding in the cumPoolsSmooth fnct. Leaving these lines here as
   # exploration tools.
   # if (!is.na(P(sim)$.plotInitialTime))
-  # sim$plotsRawCumulativeBiomass <- Cache(m3ToBiomPlots, inc = cumPoolsRaw,
-  #                                        path = figPath,
-  #                                        filenameBase = "rawCumBiomass_")
+  sim$plotsRawCumulativeBiomass <- m3ToBiomPlots( inc = cumPoolsRaw,
+                                                  path = figPath,
+                                                  filenameBase = "rawCumBiomass_")
 
   # Fixing of non-smooth curves
 
-  cumPoolsClean <- Cache(cumPoolsSmooth, cumPoolsRaw)
+  cumPoolsClean <- Cache(cumPoolsSmooth, cumPoolsRaw
+                         ) |> Cache()
 
   # a[, totMerch := totMerchNew]
   if (!is.na(P(sim)$.plotInitialTime))
     figs <- Cache(m3ToBiomPlots, inc = cumPoolsClean,
                 path = figPath,
-                filenameBase = "cumPools_smoothed_postChapmanRichards")
+                filenameBase = "cumPools_smoothed_postChapmanRichards"
+                ) |> Cache()
 
   set(cumPoolsClean, NULL, colNames, NULL)
   colNamesNew <- grep(cbmAboveGroundPoolColNames, colnames(cumPoolsClean), value = TRUE)
@@ -421,8 +439,7 @@ Init <- function(sim) {
   cumPoolsClean[, (incCols) := lapply(.SD, function(x) c(NA, diff(x))), .SDcols = colNames,
                 by = eval("gcids")]
   colsToUse33 <- c("age", "gcids", incCols)
-  if (!is.na(P(sim)$.plotInitialTime))
-    rawIncPlots <- Cache(m3ToBiomPlots, inc = cumPoolsClean[, ..colsToUse33],
+  rawIncPlots <- Cache(m3ToBiomPlots, inc = cumPoolsClean[, ..colsToUse33],
                        path = figPath,
                        title = "Smoothed increments merch fol other by gc id",
                        filenameBase = "Increments")
@@ -432,7 +449,7 @@ Init <- function(sim) {
 
   sim$cumPoolsClean <- cumPoolsClean
 
-  colsToUseForestType <- c("growth_curve_component_id", "forest_type_id", "gcids")
+  colsToUseForestType <- c("growth_curve_component_id", "forest_type_id", "gcids") ##TODO: only c("forest_type_id", "gcids") is used in SK
   forestType <- gcMeta[, ..colsToUseForestType]
   #       #FYI:
   #       # cbmTables$forest_type
@@ -443,90 +460,60 @@ Init <- function(sim) {
   #       # 4  9 Not Applicable
 
   setkeyv(forestType, "gcids")
-  cumPoolsClean <- merge(cumPoolsClean, forestType, by = "gcids")
-  swCols <- c("swmerch", "swfol", "swother")
-  hwCols <- c("hwmerch", "hwfol", "hwother")
+  cumPoolsClean <- merge(cumPoolsClean, forestType, by = "gcids",
+                         all.x = TRUE, all.y = FALSE)
 
-  totalIncrementsSmooth <- cumPoolsClean[forest_type_id == 1, (swCols) := list((incMerch), (incFol), (incOther))]
-  totalIncrementsSmooth <- totalIncrementsSmooth[forest_type_id == 3, (hwCols) := list((incMerch), (incFol), (incOther))]
-  totalIncrementsSmooth[is.na(totalIncrementsSmooth)] <- 0
-  outCols <- c("incMerch", "incFol", "incOther", "forest_type_id")
-  incCols <- c(swCols, hwCols)
-  totalIncrementsSmooth[, (outCols) := NULL]
-  increments <- totalIncrementsSmooth[, (incCols) := list(
-    swmerch / 2, swfol / 2,
-    swother / 2, hwmerch / 2, hwfol / 2, hwother / 2
+
+  ## this is how it was done in the old RIA version.
+  # swCols <- c("swmerch", "swfol", "swother")
+  # hwCols <- c("hwmerch", "hwfol", "hwother")
+  #
+  # totalIncrementsSmooth <- cumPoolsClean[forest_type_id == 1, (swCols) := list((incMerch), (incFol), (incOther))]
+  # totalIncrementsSmooth <- totalIncrementsSmooth[forest_type_id == 3, (hwCols) := list((incMerch), (incFol), (incOther))]
+  # totalIncrementsSmooth[is.na(totalIncrementsSmooth)] <- 0
+  # outCols <- c("incMerch", "incFol", "incOther", "forest_type_id")
+  # incCols <- c(swCols, hwCols)
+  # totalIncrementsSmooth[, (outCols) := NULL]
+  # increments <- totalIncrementsSmooth[, (incCols) := list(
+  #   swmerch / 2, swfol / 2,
+  #   swother / 2, hwmerch / 2, hwfol / 2, hwother / 2
+  # )]
+  # setorderv(increments, c("gcids", "age"))
+  #
+  # incColKeep <- c("id", "age", incCols)
+  # set(increments, NULL, "id", as.numeric(increments[["gcids"]]))
+  # set(increments, NULL, setdiff(colnames(increments), incColKeep), NULL)
+  # setcolorder(increments, incColKeep)
+  #
+  ## this is how it is done in SK, will need to see which is best
+  outCols <- c("id", "ecozone", "totMerch", "fol", "other")
+  cumPoolsClean[, (outCols) := NULL]
+  keepCols <- c("gcids", "age", "merch_inc", "foliage_inc", "other_inc", "forest_type_id")
+  incCols <- c("merch_inc", "foliage_inc", "other_inc")
+  setnames(cumPoolsClean,names(cumPoolsClean),
+           keepCols)
+  increments <- cumPoolsClean[, (incCols) := list(
+    merch_inc, foliage_inc, other_inc
   )]
   setorderv(increments, c("gcids", "age"))
 
-  incColKeep <- c("id", "age", incCols)
-  set(increments, NULL, "id", as.numeric(increments[["gcids"]]))
-  set(increments, NULL, setdiff(colnames(increments), incColKeep), NULL)
-  setcolorder(increments, incColKeep)
 
   # Assertions
   if (isTRUE(P(sim)$doAssertions)) {
     # All should have same min age
-    if (length(unique(increments[, min(age), by = "id"]$V1)) != 1)
+    if (length(unique(increments[, min(age), by = "forest_type_id"]$V1)) != 1)
       stop("All ages should start at the same age for each curveID")
-    if (length(unique(increments[, max(age), by = "id"]$V1)) != 1)
+    if (length(unique(increments[, max(age), by = "forest_type_id"]$V1)) != 1)
       stop("All ages should end at the same age for each curveID")
   }
+  ## replace increments that are NA with 0s
 
-  sim$growth_increments <- as.matrix(increments)
+  increments[is.na(increments), ] <- 0
+  sim$growth_increments <- increments
   # END process growth curves -------------------------------------------------------------------------------
 
-  sim$gcHash <- matrixHash(sim$growth_increments)
-  # create a nested hash (by gcid/by age)
-  ## used in SpinUp function later...
-  for (item in ls(sim$gcHash)) {
-    sim$gcHash[[item]] <- hash(sim$gcHash[[item]])
-  }
-
   # ! ----- STOP EDITING ----- ! #
 
-  return(invisible(sim))
-}
-
-### template for save events
-Save <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # do stuff for this event
-  sim <- saveFiles(sim)
-
-  # ! ----- STOP EDITING ----- ! #
-  return(invisible(sim))
-}
-
-### template for plot events
-plotFun <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # do stuff for this event
-  # Plot(sim$object)
-
-  # ! ----- STOP EDITING ----- ! #
-  return(invisible(sim))
-}
-
-### template for your event1
-Event1 <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # THE NEXT TWO LINES ARE FOR DUMMY UNIT TESTS; CHANGE OR DELETE THEM.
-  # sim$event1Test1 <- " this is test for event 1. " # for dummy unit test
-  # sim$event1Test2 <- 999 # for dummy unit test
-
-  # ! ----- STOP EDITING ----- ! #
-  return(invisible(sim))
-}
-
-### template for your event2
-Event2 <- function(sim) {
-  # ! ----- EDIT BELOW ----- ! #
-  # THE NEXT TWO LINES ARE FOR DUMMY UNIT TESTS; CHANGE OR DELETE THEM.
-  # sim$event2Test1 <- " this is test for event 2. " # for dummy unit test
-  # sim$event2Test2 <- 777  # for dummy unit test
-
-  # ! ----- STOP EDITING ----- ! #
   return(invisible(sim))
 }
 
