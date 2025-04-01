@@ -76,7 +76,7 @@ defineModule(sim, list(
     expectsInput(
       objectName = "cbmAdmin", objectClass = "dataframe",
       desc = "Provides equivalent between provincial boundaries, CBM-id for provincial boundaries and CBM-spatial unit ids",
-      sourceURL = "https://drive.google.com/file/d/1NwVPqMho8fOcf9mVVzm5SlfDbbyQmQlh/view?usp=sharing"
+      sourceURL = "https://drive.google.com/file/d/1KiLW35XB-GgSdjIasFHDjXH6ilQXs7iy"
     ),
     expectsInput(objectName = "gcMeta",
                  objectClass = "dataframe",
@@ -307,16 +307,38 @@ Init <- function(sim) {
   # data frame with the same columns as gcMetaEg.csv OR is could be only curve
   # id and species. This format is necessary to process the curves and use the
   # resulting increments
+  
+  # this builds the LandRSpecies table that has all the possible options for canfi_species, genus (4 letter code), species (3 letter code)
+  landRSpecies <- LandR::sppEquivalencies_CA[,.(CanfiCode, NFI, EN_generic_full, Broadleaf)]
+  landRSpecies <- landRSpecies %>%
+    tidyr::extract(NFI, into = c("genus", "species"), "(.*)_([^_]+)$")
+  colnames(landRSpecies)[colnames(landRSpecies) == c("CanfiCode", "genus", "species", "EN_generic_full", "Broadleaf")] <- c("canfi_species", "genus", "species", "name", "forest_type_id")
+  landRSpecies$forest_type_id[landRSpecies$forest_type_id == FALSE] <- "3"
+  landRSpecies$forest_type_id[landRSpecies$forest_type_id == TRUE] <- "1"
+  
   gcMeta <- sim$gcMeta
-
-  ## This is for the RIA fire return interval runsL using unmanged curves (VDYP)
-  riaGcMeta <- gcMeta[, .(au_id, tsa, canfi_species, unmanaged_curve_id)]
-  # this will be slightly different when au_id are not equal to
-  # unmanaged_curve_id. For VDYP, those are equal.
-  setnames(riaGcMeta,
-           c("au_id", "tsa", "unmanaged_curve_id"),
-           c("growth_curve_component_id", "TSAid","growth_curve_id")) ##TODO: these names may need to be changed, i.e. growth_curve_component_id to gcids
-
+  # gcMeta <- merge.data.table(gcMeta,landRSpecies, by = "canfi_species")
+  # gcMeta[, species := NULL]
+  # setnames(gcMeta, "name", "species")
+  gcMeta2 <- gcMeta[, .(gcids, canfi_species)]
+  
+  if (nrow(gcMeta2) == length(which(gcMeta$canfi_species %in% sim$canfi_species$canfi_species))) {
+    spsMatch <- sim$canfi_species[
+      , which(canfi_species %in% gcMeta2$canfi_species),
+      .(canfi_species, genus, name, forest_type_id)
+    ]
+    spsMatch[, V1 := NULL]
+    names(spsMatch) <- c("canfi_species", "genus", "species", "forest_type_id")
+    setkey(gcMeta2, canfi_species)
+    setkey(spsMatch, canfi_species)
+    gcMeta3 <- merge(gcMeta2, spsMatch) # I do not think the order of the columns matter
+    gcMeta <- gcMeta3
+  }
+  
+  setkey(gcMeta, gcids)
+  # if (!unique(unique(userGcM3$gcids) == unique(gcMeta$gcids))) {
+  #   stop("There is a missmatch in the growth curves of the userGcM3 and the gcMeta")
+  # }
 
   # assuming gcMeta has now 6 columns, it needs a 7th: spatial_unit_id. This
   # will be used in the convertM3biom() fnct to link to the right ecozone
@@ -324,8 +346,8 @@ Init <- function(sim) {
 
   gcThisSim <- unique(sim$spatialDT[,.(gcids, spatial_unit_id, ecozones)])
   setkey(gcThisSim, gcids)
-  setkey(riaGcMeta, gcids) ## changed from gcMeta to riaGcMeta
-  gcMeta <- merge(riaGcMeta, gcThisSim) ## changed from gcMeta to riaGcMeta # adds ecozone
+  setkey(gcMeta, gcids) ## changed from gcMeta to riaGcMeta
+  gcMeta <- merge(gcMeta, gcThisSim) ## changed from gcMeta to riaGcMeta # adds ecozone
 
   # curveID are the columns use to make the unique levels in the factor gcids.
   # These factor levels are the link between the pixelGroups and the curve to be
@@ -342,14 +364,8 @@ Init <- function(sim) {
   set(gcMeta, NULL, "gcids", gcids)
 
   setkey(gcMeta, gcids)
-  if (!unique(unique(userGcM3$gcids) == unique(gcMeta$gcids))) {
-    stop("There is a missmatch in the growth curves of the userGcM3 and the gcMeta")
-  }
+  setkey(userGcM3, gcids)
 
-# RIA still missing columns in gcMeta: species genus and forest_type_id
-  gcMeta <- merge.data.table(gcMeta, sim$canfi_species, by = "canfi_species", all.x = TRUE)
-  gcMeta[, species := NULL]
-  setnames(gcMeta, "name", "species")
   ##TODO: this check is from the SK vol2biomass, it's possible the current RIA table won't have these exact column names. We will have to make sure it does.
   if (isFALSE(c("gcids", "species") %in% colnames(gcMeta))) {
     stop("Curve ID or species is missing from gcMeta")
@@ -389,9 +405,8 @@ Init <- function(sim) {
                                     other = 0 )
 
   fiveOf7cols <- fill0s[carbonVars, on = "gcids"]
-
   otherVars <- cumPools[,.(id = unique(id), ecozone = unique(ecozone)), by = "gcids"]
-  add0s <- fiveOf7cols[otherVars, on = "gcids"]
+  add0s <- fiveOf7cols[otherVars, on = "gcids", allow.cartesian = TRUE]
   cumPoolsRaw <- rbind(cumPools,add0s)
   set(cumPoolsRaw, NULL, "age", as.numeric(cumPoolsRaw$age))
   setorderv(cumPoolsRaw, c("gcids", "age"))
@@ -399,13 +414,8 @@ Init <- function(sim) {
 
   # 3. Plot the curves that are directly out of the Boudewyn-translation
   # Usually, these need to be, at a minimum, smoothed out.
-  if (!is.null(P(sim)$outputFigurePath) || !is.na(P(sim)$outputFigurePath)){
     figPath <- file.path(outputPath(sim), "CBM_vol2biomass_figures")
     dir.create(figPath, recursive = TRUE, showWarnings = FALSE)
-  }else{
-    figPath <- P(sim)$outputFigurePath
-    if (!file.exists(figPath)) stop("Output figure path not found: ", figPath)
-  }
 
   # plotting and save the plots of the raw-translation in the sim$ don't really
   # need this b/c the next use of m3ToBiomPlots fnct plots all 6 curves, 3
@@ -428,7 +438,7 @@ Init <- function(sim) {
                 path = figPath,
                 filenameBase = "cumPools_smoothed_postChapmanRichards"
                 ) |> Cache()
-
+browser()
   set(cumPoolsClean, NULL, colNames, NULL)
   colNamesNew <- grep(cbmAboveGroundPoolColNames, colnames(cumPoolsClean), value = TRUE)
   setnames(cumPoolsClean, old = colNamesNew, new = colNames)
@@ -449,7 +459,7 @@ Init <- function(sim) {
 
   sim$cumPoolsClean <- cumPoolsClean
 
-  colsToUseForestType <- c("growth_curve_component_id", "forest_type_id", "gcids") ##TODO: only c("forest_type_id", "gcids") is used in SK
+  colsToUseForestType <- c("forest_type_id", "gcids") 
   forestType <- gcMeta[, ..colsToUseForestType]
   #       #FYI:
   #       # cbmTables$forest_type
@@ -460,9 +470,7 @@ Init <- function(sim) {
   #       # 4  9 Not Applicable
 
   setkeyv(forestType, "gcids")
-  cumPoolsClean <- merge(cumPoolsClean, forestType, by = "gcids",
-                         all.x = TRUE, all.y = FALSE)
-
+  cumPoolsClean <- cumPoolsClean[unique(forestType), on = "gcids"]
 
   ## this is how it was done in the old RIA version.
   # swCols <- c("swmerch", "swfol", "swother")
