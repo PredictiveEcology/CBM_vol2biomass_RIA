@@ -307,15 +307,7 @@ Init <- function(sim) {
   # data frame with the same columns as gcMetaEg.csv OR is could be only curve
   # id and species. This format is necessary to process the curves and use the
   # resulting increments
-  
-  # this builds the LandRSpecies table that has all the possible options for canfi_species, genus (4 letter code), species (3 letter code)
-  landRSpecies <- LandR::sppEquivalencies_CA[,.(CanfiCode, NFI, EN_generic_full, Broadleaf)]
-  landRSpecies <- landRSpecies %>%
-    tidyr::extract(NFI, into = c("genus", "species"), "(.*)_([^_]+)$")
-  colnames(landRSpecies)[colnames(landRSpecies) == c("CanfiCode", "genus", "species", "EN_generic_full", "Broadleaf")] <- c("canfi_species", "genus", "species", "name", "forest_type_id")
-  landRSpecies$forest_type_id[landRSpecies$forest_type_id == FALSE] <- "3"
-  landRSpecies$forest_type_id[landRSpecies$forest_type_id == TRUE] <- "1"
-  
+
   gcMeta <- sim$gcMeta
   # gcMeta <- merge.data.table(gcMeta,landRSpecies, by = "canfi_species")
   # gcMeta[, species := NULL]
@@ -335,6 +327,7 @@ Init <- function(sim) {
     gcMeta <- gcMeta3
   }
   
+  
   setkey(gcMeta, gcids)
   # if (!unique(unique(userGcM3$gcids) == unique(gcMeta$gcids))) {
   #   stop("There is a missmatch in the growth curves of the userGcM3 and the gcMeta")
@@ -348,20 +341,6 @@ Init <- function(sim) {
   setkey(gcThisSim, gcids)
   setkey(gcMeta, gcids) ## changed from gcMeta to riaGcMeta
   gcMeta <- merge(gcMeta, gcThisSim) ## changed from gcMeta to riaGcMeta # adds ecozone
-
-  # curveID are the columns use to make the unique levels in the factor gcids.
-  # These factor levels are the link between the pixelGroups and the curve to be
-  # use to growth their AGB.
-
-  curveID <- sim$curveID
-  if (!is.null(sim$level3DT)) {
-    gcidsLevels <- levels(sim$level3DT$gcids)
-    gcids <- factor(gcidsCreate(gcMeta[, ..curveID]), levels = gcidsLevels)
-  } else {
-    gcids <- factor(gcidsCreate(gcMeta[, ..curveID]))
-  }
-
-  set(gcMeta, NULL, "gcids", gcids)
 
   setkey(gcMeta, gcids)
   setkey(userGcM3, gcids)
@@ -385,9 +364,26 @@ Init <- function(sim) {
   # Matching is 1st on species, then on gcId which gives us location (admin,
   # spatial unit and ecozone)
   fullSpecies <- unique(gcMeta$species) ## RIA: change this to the canfi_sps or match??
+  # gcMeta <- unique(gcMeta[,.(gcids, canfi_species, genus, species, forest_type_id)])
 
+browser()
   cumPools <- Cache(cumPoolsCreate, fullSpecies, gcMeta, userGcM3,
                              stable3, stable4, stable5, stable6, stable7, thisAdmin)
+  setnames(cumPools, "ecozone", "ecozones")
+  
+  # curveID are the columns use to make the unique levels in the factor gcids.
+  # These factor levels are the link between the pixelGroups and the curve to be
+  # use to growth their AGB.
+  curveID <- c("gcids", "ecozones") ##TODO: remove hardcode when dataPrep is updated 
+  if (!is.null(sim$level3DT)) {
+    gcidsLevels <- levels(sim$level3DT$gcids)
+    gcids <- factor(gcidsCreate(cumPools[, ..curveID]))
+  } else {
+    gcids <- factor(gcidsCreate(cumPools[, ..curveID]))
+  }
+  set(cumPools, NULL, "id", gcids)
+  set(cumPools, NULL, "gcids", gcids)
+  setnames(cumPools, "ecozones", "ecozone")
 
   cbmAboveGroundPoolColNames <- "totMerch|fol|other"
   colNames <- grep(cbmAboveGroundPoolColNames, colnames(cumPools), value = TRUE)
@@ -429,8 +425,8 @@ Init <- function(sim) {
 
   # Fixing of non-smooth curves
 
-  cumPoolsClean <- Cache(cumPoolsSmooth, cumPoolsRaw
-                         ) |> Cache()
+  cumPoolsClean <- cumPoolsSmooth(cumPoolsRaw
+                                  ) |> Cache()
 
   # a[, totMerch := totMerchNew]
   if (!is.na(P(sim)$.plotInitialTime))
@@ -438,7 +434,6 @@ Init <- function(sim) {
                 path = figPath,
                 filenameBase = "cumPools_smoothed_postChapmanRichards"
                 ) |> Cache()
-browser()
   set(cumPoolsClean, NULL, colNames, NULL)
   colNamesNew <- grep(cbmAboveGroundPoolColNames, colnames(cumPoolsClean), value = TRUE)
   setnames(cumPoolsClean, old = colNamesNew, new = colNames)
@@ -460,6 +455,15 @@ browser()
   sim$cumPoolsClean <- cumPoolsClean
 
   colsToUseForestType <- c("forest_type_id", "gcids") 
+  
+  if (!is.null(sim$level3DT)) {
+    gcidsLevels <- levels(sim$level3DT$gcids)
+    gcids <- factor(gcidsCreate(gcMeta[, ..curveID]))
+  } else {
+    gcids <- factor(gcidsCreate(gcMeta[, ..curveID]))
+  }
+  set(gcMeta, NULL, "gcids", gcids)
+  
   forestType <- gcMeta[, ..colsToUseForestType]
   #       #FYI:
   #       # cbmTables$forest_type
@@ -471,7 +475,6 @@ browser()
 
   setkeyv(forestType, "gcids")
   cumPoolsClean <- cumPoolsClean[unique(forestType), on = "gcids"]
-
   ## this is how it was done in the old RIA version.
   # swCols <- c("swmerch", "swfol", "swother")
   # hwCols <- c("hwmerch", "hwfol", "hwother")
@@ -496,7 +499,7 @@ browser()
   ## this is how it is done in SK, will need to see which is best
   outCols <- c("id", "ecozone", "totMerch", "fol", "other")
   cumPoolsClean[, (outCols) := NULL]
-  keepCols <- c("gcids", "age", "merch_inc", "foliage_inc", "other_inc", "forest_type_id")
+  keepCols <- c("age", "gcids", "merch_inc", "foliage_inc", "other_inc", "forest_type_id")
   incCols <- c("merch_inc", "foliage_inc", "other_inc")
   setnames(cumPoolsClean,names(cumPoolsClean),
            keepCols)
@@ -546,7 +549,7 @@ browser()
   cacheTags <- c(currentModule(sim), "function:.inputObjects")
 
   if (!suppliedElsewhere("curveID", sim)) {
-    sim$curveID <- c("growth_curve_component_id", "ecozones")
+    sim$curveID <- c("gcids", "ecozones")
   }
 
   # 1. tables from Boudewyn
