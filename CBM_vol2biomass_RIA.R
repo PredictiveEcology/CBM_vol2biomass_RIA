@@ -181,6 +181,8 @@ Init <- function(sim) {
                           by = "gcids"]
     setnames(missingAboveMin, c("x", "y"), c("Age", "MerchVolume"))
     missingAboveMin <- na.omit(missingAboveMin)
+    colsToKeep <- c("gcids", "Age", "MerchVolume")
+    sim$userGcM3 <- sim$userGcM3[, ..colsToKeep]
     sim$userGcM3 <- rbindlist(list(sim$userGcM3, missingAboveMin))
     setorderv(sim$userGcM3, c("gcids", "Age"))
 
@@ -307,7 +309,6 @@ Init <- function(sim) {
   # data frame with the same columns as gcMetaEg.csv OR is could be only curve
   # id and species. This format is necessary to process the curves and use the
   # resulting increments
-
   gcMeta <- sim$gcMeta
   # gcMeta <- merge.data.table(gcMeta,landRSpecies, by = "canfi_species")
   # gcMeta[, species := NULL]
@@ -345,7 +346,6 @@ Init <- function(sim) {
   setkey(gcMeta, gcids)
   setkey(userGcM3, gcids)
 
-  ##TODO: this check is from the SK vol2biomass, it's possible the current RIA table won't have these exact column names. We will have to make sure it does.
   if (isFALSE(c("gcids", "species") %in% colnames(gcMeta))) {
     stop("Curve ID or species is missing from gcMeta")
   }
@@ -366,15 +366,13 @@ Init <- function(sim) {
   fullSpecies <- unique(gcMeta$species) ## RIA: change this to the canfi_sps or match??
   # gcMeta <- unique(gcMeta[,.(gcids, canfi_species, genus, species, forest_type_id)])
 
-browser()
   cumPools <- Cache(cumPoolsCreate, fullSpecies, gcMeta, userGcM3,
                              stable3, stable4, stable5, stable6, stable7, thisAdmin)
-  setnames(cumPools, "ecozone", "ecozones")
   
   # curveID are the columns use to make the unique levels in the factor gcids.
   # These factor levels are the link between the pixelGroups and the curve to be
   # use to growth their AGB.
-  curveID <- c("gcids", "ecozones") ##TODO: remove hardcode when dataPrep is updated 
+  curveID <- c("gcids") ##TODO: remove hardcode when dataPrep is updated 
   if (!is.null(sim$level3DT)) {
     gcidsLevels <- levels(sim$level3DT$gcids)
     gcids <- factor(gcidsCreate(cumPools[, ..curveID]))
@@ -383,7 +381,6 @@ browser()
   }
   set(cumPools, NULL, "id", gcids)
   set(cumPools, NULL, "gcids", gcids)
-  setnames(cumPools, "ecozones", "ecozone")
 
   cbmAboveGroundPoolColNames <- "totMerch|fol|other"
   colNames <- grep(cbmAboveGroundPoolColNames, colnames(cumPools), value = TRUE)
