@@ -17,7 +17,7 @@ defineModule(sim, list(
   documentation = deparse(list("README.txt", "CBM_vol2biomass_RIA.Rmd")),
   reqdPkgs = list(
     "ggplot2", "ggpubr", "mgcv", "quickPlot", "PredictiveEcology/CBMutils@development",
-    "robustbase", "ggforce"
+    "robustbase", "ggforce", "googledrive"
   ),
   parameters = rbind(
     # defineParameter("paramName", "paramClass", value, min, max, "parameter description"),
@@ -210,99 +210,16 @@ Init <- function(sim) {
   eco <- unique(sim$ecozones)
 
   thisAdmin <- sim$cbmAdmin[sim$cbmAdmin$SpatialUnitID %in% spu & sim$cbmAdmin$EcoBoundaryID %in% eco, ]
-
-  # START reducing Biomass model parameter tables -----------------------------------------------
-  # not all ecozones are in tables 3-7. There may be some mismatch here.
-  # these are the ecozones in the tables
-  # id               name
-  # 4       Taiga Plains
-  # 5  Taiga Shield West
-  # 6 Boreal Shield West
-  # 7  Atlantic Maritime
-  # 9      Boreal Plains
-  # 10  Subhumid Prairies
-  # 12  Boreal Cordillera
-  # 13   Pacific Maritime
-  # 14 Montane Cordillera
-  # these are the ones that are not.
-  # id               name
-  # 8   Mixedwood Plains  - 7  Atlantic Maritime
-  # 11   Taiga Cordillera - 4 taiga plains
-  # 15      Hudson Plains - 6 Boreal Shield West
-  # 16  Taiga Shield East - 5  Taiga Shield West
-  # 17 Boreal Shield East - 6 Boreal Shield West
-  # 18  Semiarid Prairies - 10  Subhumid Prairies
-
-  ecoNotInT <- c(8, 11, 15, 16, 17, 18)
-  if (any(eco %in% ecoNotInT)) {
-    EcoBoundaryID <- c(7, 4, 6, 5, 6, 10)
-    ecoReplace <- data.table(ecoNotInT, EcoBoundaryID)
-    thisAdmin <- merge(ecoReplace, thisAdmin, by.x = "ecoNotInT", by.y = "EcoBoundaryID")
-  }
-
-  if (any(eco %in% ecoNotInT)) {
-    stable3 <- as.data.table(sim$table3[sim$table3$juris_id %in% thisAdmin$abreviation &
-                                          sim$table3$ecozone %in% thisAdmin$EcoBoundaryID, ])
-    stable4 <- as.data.table(sim$table4[sim$table4$juris_id %in% thisAdmin$abreviation &
-                                          sim$table4$ecozone %in% thisAdmin$EcoBoundaryID, ])
-  } else {
-    stable3 <- as.data.table(sim$table3[sim$table3$juris_id %in% thisAdmin$abreviation &
-                                          sim$table3$ecozone %in% eco, ])
-    stable4 <- as.data.table(sim$table4[sim$table4$juris_id %in% thisAdmin$abreviation &
-                                          sim$table4$ecozone %in% eco, ])
-  }
-
-  abreviation <- c("PE", "QC", "ON", "MB", "SK", "YK", "NU", "NS")
-  ## DANGER HARD CODED: if NFIS changes table 5, this will no longer be valid
-  # juris_id: there are only 5/13 possible
-  # these are the provinces available: AB BC NB NF NT
-  # for the non match these would be the equivalent
-  # "PE" - NB
-  # "QC" - NB
-  # "ON" - NB
-  # "MB" - AB
-  # "SK" - AB
-  # "YK" - NT
-  # "NU" - NT
-  # "NS" - NB
-  if (any(thisAdmin$abreviation %in% abreviation)) {
-    t5abreviation <- c("NB", "NL", "NL", "AB", "AB", "NT", "NT", "NB")
-    abreviationReplace <- data.table(abreviation, t5abreviation)
-    # replace the abbreviations and select
-    thisAdmin5 <- merge(abreviationReplace, thisAdmin)
-    thisAdmin5[, c("abreviation", "t5abreviation") := list(t5abreviation, NULL)]
-    stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin5$abreviation, ])
-    stable5 <- stable5.2[ecozone %in% thisAdmin$EcoBoundaryID, ]
-  } else {
-    stable5.2 <- as.data.table(sim$table5[sim$table5$juris_id %in% thisAdmin$abreviation, ])
-    stable5 <- stable5.2[ecozone %in% thisAdmin$EcoBoundaryID, ]
-  }
-  # This second "if-statement" is to catch is the "no-ecozone" match
-  ### THIS NEEDS TO BE TESTED
-  if (nrow(stable5.2) > 0) {
-    stable5 <- stable5.2[ecozone %in% thisAdmin$EcoBoundaryID, ]
-  } else {
-    stop(
-      "There are no matches found for the parameters needed to execute the Boudewyn models.",
-      "Please manually find matches for table 5."
-    )
-  }
-
-  if (nrow(stable5) < 1) {
-    stop("There is a problem finding a parameter match in table 5.")
-  }
-
-  if (any(eco %in% ecoNotInT)) {
-    stable6 <- as.data.table(sim$table6[sim$table6$juris_id %in% thisAdmin$abreviation &
-                                          sim$table6$ecozone %in% thisAdmin$EcoBoundaryID, ])
-    stable7 <- as.data.table(sim$table7[sim$table7$juris_id %in% thisAdmin$abreviation &
-                                          sim$table7$ecozone %in% thisAdmin$EcoBoundaryID, ])
-  } else {
-    stable6 <- as.data.table(sim$table6[sim$table6$juris_id %in% thisAdmin$abreviation &
-                                          sim$table6$ecozone %in% eco, ])
-    stable7 <- as.data.table(sim$table7[sim$table7$juris_id %in% thisAdmin$abreviation &
-                                          sim$table7$ecozone %in% eco, ])
-  }
+  
+  # subsetting Boudewyn tables to the ecozones/admin boundaries of the study area.
+  # Some ecozones/boundaries are not in these tables, in these cases, the function replaces them in
+  # thisAdmin to the closest equivalent present in the Boudewyn tables.
+  stable3 <- boudewynSubsetTables(sim$table3, thisAdmin, eco)
+  stable4 <- boudewynSubsetTables(sim$table4, thisAdmin, eco)
+  stable5 <- boudewynSubsetTables(sim$table5, thisAdmin, eco)
+  stable6 <- boudewynSubsetTables(sim$table6, thisAdmin, eco)
+  stable7 <- boudewynSubsetTables(sim$table7, thisAdmin, eco)
+  
   # END reducing Biomass model parameter tables -----------------------------------------------
 
   # Read-in user provided meta data for growth curves. This could be a complete
