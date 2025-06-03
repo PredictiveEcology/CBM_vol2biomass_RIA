@@ -18,7 +18,7 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = deparse(list("README.txt", "CBM_vol2biomass_RIA.Rmd")),
   reqdPkgs = list(
-    "PredictiveEcology/CBMutils@development (>=2.0.3)",
+    "PredictiveEcology/CBMutils@development (>=2.0.3.0005)",
     "ggforce", "ggplot2", "ggpubr", "googledrive", "mgcv", "quickPlot", "robustbase", "data.table", "patchwork"
   ),
   parameters = rbind(
@@ -120,7 +120,7 @@ defineModule(sim, list(
     createsOutput(objectName = "gcMetaAllCols",
                   objectClass = "dataframe",
                   desc = "gcMeta as above plus ecozones"),
-    createsOutput(objectName = "cumPoolsClean",
+    createsOutput(objectName = "cPoolsClean",
                   objectClass = "dataframe",
                   desc = "Cumulative carbon increments after smoothing."),
     createsOutput(objectName = "growth_increments", objectClass = "matrix", desc = "Matrix of the 1/2 increment that will be used to create the gcHash"),
@@ -203,7 +203,7 @@ Init <- function(sim) {
   
   ## Check that all required columns are available, and if not, add them:
   ## "gcids" "species" "canfi_species" "genus" "sw_hw"
-  browser()
+ 
   ## Check that all required columns are available, and if not, add them:
   ## "gcids" "species" "canfi_species" "genus" "sw_hw"
   if (!all(c(sim$curveID, "species") %in% names(sim$gcMeta))) stop(
@@ -258,7 +258,6 @@ Init <- function(sim) {
   # Matching is 1st on species, then on gcids which gives us location (admin,
   # spatial unit and ecozone)
   fullSpecies <- unique(gcMeta$species) 
-
   cPools <- cumPoolsCreate(fullSpecies, gcMeta, userGcM3,
                            stable3, stable4, stable5, stable6, stable7, thisAdmin
   ) |> Cache()
@@ -269,15 +268,15 @@ Init <- function(sim) {
   curveID <- c("gcids") ##TODO: remove hardcode when dataPrep is updated 
   if (!is.null(sim$level3DT)) {
     gcidsLevels <- levels(sim$level3DT$gcids)
-    gcids <- factor(gcidsCreate(cumPools[, ..curveID]))
+    gcids <- factor(gcidsCreate(cPools[, ..curveID]))
   } else {
-    gcids <- factor(gcidsCreate(cumPools[, ..curveID]))
+    gcids <- factor(gcidsCreate(cPools[, ..curveID]))
   }
-  set(cumPools, NULL, "id", gcids)
-  set(cumPools, NULL, "gcids", gcids)
+  set(cPools, NULL, "id", gcids)
+  set(cPools, NULL, "gcids", gcids)
 
   cbmAboveGroundPoolColNames <- "totMerch|fol|other"
-  colNames <- grep(cbmAboveGroundPoolColNames, colnames(cumPools), value = TRUE)
+  colNames <- grep(cbmAboveGroundPoolColNames, colnames(cPools), value = TRUE)
 
   # 2. Make sure the provided curves are annual
   ## if not, we need to extrapolate to make them annual
@@ -301,7 +300,7 @@ Init <- function(sim) {
 
   # Fixing of non-smooth curves
 
-  cumPoolsClean <- cumPoolsSmooth(cumPoolsRaw
+  cPoolsClean <- cumPoolsSmooth(cPoolsRaw
                                   ) |> Cache()
 
   #Note: this will produce a warning if one of the curve smoothing efforts doesn't converge
@@ -358,12 +357,12 @@ Init <- function(sim) {
   
   # 5. finalize sim$growth_increments table
   outCols <- c("id", "ecozone", "totMerch", "fol", "other")
-  cumPoolsClean[, (outCols) := NULL]
+  cPoolsClean[, (outCols) := NULL]
   keepCols <- c("age", "gcids", "merch_inc", "foliage_inc", "other_inc", "forest_type_id")
   incCols <- c("merch_inc", "foliage_inc", "other_inc")
-  setnames(cumPoolsClean,names(cumPoolsClean),
+  setnames(cPoolsClean,names(cPoolsClean),
            keepCols)
-  increments <- cumPoolsClean[, (incCols) := list(
+  increments <- cPoolsClean[, (incCols) := list(
     merch_inc, foliage_inc, other_inc
   )]
   setorderv(increments, c("gcids", "age"))
