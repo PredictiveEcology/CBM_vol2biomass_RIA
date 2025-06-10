@@ -247,6 +247,8 @@ Init <- function(sim) {
   ################
   warning("Modifying canfi_species 1211 ecozone to 1203") ##TODO: why do we do this?
   gcMeta[canfi_species == 1211, canfi_species := 1203]
+  gcMeta[gcids == "4003001_9", gcids := "4003001_4"]
+  gcMeta[gcids == "4103000_9", gcids := "4103000_4"]
 
   sim$gcMetaAllCols <- gcMeta
   
@@ -336,17 +338,17 @@ Init <- function(sim) {
   }
   
   sim$cPoolsClean <- cPoolsClean
-  
-  setkeyv(forestType, "gcids")
-  cPoolsClean <- merge(cPoolsClean, forestType, by = "gcids",
-                       all.x = TRUE, all.y = FALSE)
+
+  # 4. add sw/hw flag
+  gcMeta <- gcMeta[, forest_type_id := ifelse(sw_hw == "sw", 1, 3)]
+  colsToUseForestType <- c("forest_type_id", "gcids") 
+  forestType <- unique(gcMeta[, ..colsToUseForestType])
   
   gcids <- factor(gcidsCreate(gcMeta[, ..curveID]))
   set(gcMeta, NULL, "gcids", gcids)
-
-  # 4. add sw/hw flag
-  colsToUseForestType <- c("forest_type_id", "gcids") 
-  forestType <- unique(gcMeta[, ..colsToUseForestType])
+  setkeyv(forestType, "gcids")
+  cPoolsClean <- merge(cPoolsClean, forestType, by = "gcids",
+                       all.x = TRUE, all.y = FALSE)
   
   #       # cbmTables$forest_type
   #       # id           name
