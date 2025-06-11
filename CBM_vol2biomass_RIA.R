@@ -228,8 +228,6 @@ Init <- function(sim) {
   ################
   warning("Modifying canfi_species 1211 ecozone to 1203") ##TODO: why do we do this?
   sim$userGcMeta[canfi_species == 1211, canfi_species := 1203]
-  sim$userGcMeta[gcids == "4003001_9", gcids := "4003001_4"]
-  sim$userGcMeta[gcids == "4103000_9", gcids := "4103000_4"]
 
   sim$gcMetaAllCols <- sim$userGcMeta
   
