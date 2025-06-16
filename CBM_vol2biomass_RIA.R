@@ -343,7 +343,7 @@ Init <- function(sim) {
   # 5. finalize sim$growth_increments table
   outCols <- c("id", "ecozone", "totMerch", "fol", "other")
   cPoolsClean[, (outCols) := NULL]
-  keepCols <- c("age", "gcids", "merch_inc", "foliage_inc", "other_inc", "forest_type_id")
+  keepCols <- c("gcids", "age", "merch_inc", "foliage_inc", "other_inc", "forest_type_id")
   incCols <- c("merch_inc", "foliage_inc", "other_inc")
   setnames(cPoolsClean,names(cPoolsClean),
            keepCols)
