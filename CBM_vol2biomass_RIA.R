@@ -285,6 +285,16 @@ Init <- function(sim) {
   # 3. Fixing of non-smooth curves
   message(crayon::red("User: please inspect figures of the raw and smoothed translation of your growth curves in: ",
                       figPath))
+  
+  if (any(cPoolsRaw$gcids == "39_4102001")) {
+    cPoolsRaw[gcids == "39_4102001", fol   := cPoolsRaw[gcids == "39_4101001", fol]]
+    cPoolsRaw[gcids == "39_4102001", other := cPoolsRaw[gcids == "39_4101001", other]]
+  }
+  if (any(cPoolsRaw$gcids == "39_4103001")) {
+    cPoolsRaw[gcids == "39_4103001", fol   := cPoolsRaw[gcids == "39_4101001", fol]]
+    cPoolsRaw[gcids == "39_4103001", other := cPoolsRaw[gcids == "39_4101001", other]]
+  }
+  
 
   # Smooth curves
   cPoolsClean <- cumPoolsSmooth(cPoolsRaw
