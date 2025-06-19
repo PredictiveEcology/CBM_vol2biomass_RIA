@@ -111,22 +111,21 @@ defineModule(sim, list(
       desc = "URL for table 7")
   ),
   outputObjects = bindrows(
-    createsOutput(objectName = NA, objectClass = NA, desc = NA),
-    createsOutput(objectName = "volCurves", objectClass = "plot",
-                  desc = "Plot of all the growth curve provided by the user"),
-    createsOutput(objectName = "plotsRawCumulativeBiomass", objectClass = "plot",
-                  desc = "Plot of cumulative m3/ha curves translated into tonnes of carbon/ha, per AG pool, prior to any smoothing"),
-    createsOutput(objectName = "gcMetaAllCols",
-                  objectClass = "dataframe",
-                  desc = "gcMeta as above plus ecozones"),
-    createsOutput(objectName = "cPoolsClean",
-                  objectClass = "dataframe",
-                  desc = "Cumulative carbon increments after smoothing."),
-    createsOutput(objectName = "growth_increments", objectClass = "matrix",
-                  desc = "Matrix of the 1/2 increment that will be used to create the gcHash"),
-    createsOutput(objectName = "gcHash", objectClass = "environment", desc = "Environment pointing to each gcID, that is itself an environment,
-                  pointing to each year of growth for all AG pools.Hashed matrix of the 1/2 growth increment.
-                  This is used in the c++ functions to increment AG pools two times in an annual event (in the spadesCBMcore.R module.")
+    createsOutput(
+      objectName = "volCurves", objectClass = "plot",
+      desc = "Plot of all the growth curve provided by the user"),
+    createsOutput(
+      objectName = "gcMeta", objectClass = "data.table",
+      desc = "Growth curve metadata with key 'gcids'"),
+    createsOutput(
+      objectName = "gcMetaAllCols", objectClass = "dataframe",
+      desc = "gcMeta as above plus ecozones"),
+    createsOutput(
+      objectName = "cPoolsClean", objectClass = "dataframe",
+      desc = "Cumulative carbon increments after smoothing."),
+    createsOutput(
+      objectName = "growth_increments", objectClass = "data.table",
+      desc = "Carbon increment matrix by age for each gcids")
   )
 ))
 
