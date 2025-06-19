@@ -48,33 +48,33 @@ defineModule(sim, list(
     )
   ),
   inputObjects = bindrows(
-      expectsInput(
-        objectName = "curveID", objectClass = "character",
-        desc = "Column(s) uniquely defining each growth curve in `userGcSPU`, `userGcMeta`, and `userGcM3`."),
-      expectsInput(
-        objectName = "userGcSPU", objectClass = "data.frame",
-        desc = "Growth curve locations with columns `curveID` and 'spatial_unit_id'"),
-      expectsInput(
-        objectName = "userGcMeta", objectClass = "data.table",
-        desc = "Growth curve metadata.", #TODO: Define default data source
-        sourceURL = "https://drive.google.com/file/d/1YmQ6sNucpEmF8gYkRMocPoeKt2P26ZiX"),
-      expectsInput(
-        objectName = "userGcMetaURL", objectClass = "character",
-        desc = "URL for userGcMeta"),
-      expectsInput(
-        objectName = "userGcM3", objectClass = "dataframe",
-        desc = "User file containing: GrowthCurveComponentID,Age,MerchVolume. Default name userGcM3",
-        sourceURL = "https://drive.google.com/file/d/1BYHhuuhSGIILV1gmoo9sNjAfMaxs7qAj"),
-      expectsInput(
-        objectName = "userGcM3URL", objectClass = "character",
-        desc = "URL for userGcM3"),
-      expectsInput(
-        objectName = "cbmAdmin", objectClass = "dataframe",
-        desc = "Provides equivalent between provincial boundaries, CBM-id for provincial boundaries and CBM-spatial unit ids",
-        sourceURL = "https://drive.google.com/file/d/1KiLW35XB-GgSdjIasFHDjXH6ilQXs7iy"),
-      expectsInput(
-        objectName = "cbmAdminURL", objectClass = "character",
-        desc = "URL for cbmAdmin"),
+    expectsInput(
+      objectName = "curveID", objectClass = "character",
+      desc = "Column(s) uniquely defining each growth curve in `userGcSPU`, `userGcMeta`, and `userGcM3`."),
+    expectsInput(
+      objectName = "userGcSPU", objectClass = "data.frame",
+      desc = "Growth curve locations with columns `curveID` and 'spatial_unit_id'"),
+    expectsInput(
+      objectName = "userGcMeta", objectClass = "data.table",
+      desc = "Growth curve metadata.", #TODO: Define default data source
+      sourceURL = "https://drive.google.com/file/d/1YmQ6sNucpEmF8gYkRMocPoeKt2P26ZiX"),
+    expectsInput(
+      objectName = "userGcMetaURL", objectClass = "character",
+      desc = "URL for userGcMeta"),
+    expectsInput(
+      objectName = "userGcM3", objectClass = "dataframe",
+      desc = "User file containing: GrowthCurveComponentID,Age,MerchVolume. Default name userGcM3",
+      sourceURL = "https://drive.google.com/file/d/1BYHhuuhSGIILV1gmoo9sNjAfMaxs7qAj"),
+    expectsInput(
+      objectName = "userGcM3URL", objectClass = "character",
+      desc = "URL for userGcM3"),
+    expectsInput(
+      objectName = "cbmAdmin", objectClass = "dataframe",
+      desc = "Provides equivalent between provincial boundaries, CBM-id for provincial boundaries and CBM-spatial unit ids",
+      sourceURL = "https://drive.google.com/file/d/1KiLW35XB-GgSdjIasFHDjXH6ilQXs7iy"),
+    expectsInput(
+      objectName = "cbmAdminURL", objectClass = "character",
+      desc = "URL for cbmAdmin"),
     expectsInput(
       objectName = "table3", objectClass = "data.frame",
       desc = "Stem wood biomass model parameters for merchantable-sized trees from Boudewyn et al 2007",
@@ -122,7 +122,7 @@ defineModule(sim, list(
     createsOutput(objectName = "cPoolsClean",
                   objectClass = "dataframe",
                   desc = "Cumulative carbon increments after smoothing."),
-    createsOutput(objectName = "growth_increments", objectClass = "matrix", 
+    createsOutput(objectName = "growth_increments", objectClass = "matrix",
                   desc = "Matrix of the 1/2 increment that will be used to create the gcHash"),
     createsOutput(objectName = "gcHash", objectClass = "environment", desc = "Environment pointing to each gcID, that is itself an environment,
                   pointing to each year of growth for all AG pools.Hashed matrix of the 1/2 growth increment.
@@ -134,9 +134,9 @@ doEvent.CBM_vol2biomass_RIA <- function(sim, eventTime, eventType) {
   switch(
     eventType,
     init = {
-      
+
       sim <- Init(sim)
-      
+
     },
     warning(noEventWarning(sim))
   )
@@ -148,7 +148,7 @@ Init <- function(sim) {
   if ("gcids" %in% sim$curveID)           stop("'curveID' cannot contain \"gcids\"")
   if ("gcids" %in% names(sim$userGcMeta)) stop("'userGcMeta' cannot contain \"gcids\"")
   if ("gcids" %in% names(sim$userGcM3))   stop("'userGcM3' cannot contain \"gcids\"")
-  
+
   sim$userGcSPU  <- data.table::as.data.table(sim$userGcSPU)
   sim$userGcMeta <- data.table::as.data.table(sim$userGcMeta)
   sim$userGcM3   <- data.table::as.data.table(sim$userGcM3)
@@ -189,7 +189,7 @@ Init <- function(sim) {
 
   # START reducing Biomass model parameter tables --------------------------------------------
   thisAdmin <- sim$cbmAdmin[sim$cbmAdmin$SpatialUnitID %in% na.omit(sim$userGcSPU$spatial_unit_id), ]
-  
+
   # subsetting Boudewyn tables to the ecozones/admin boundaries of the study area.
   # Some ecozones/boundaries are not in these tables, in these cases, the function replaces them in
   # thisAdmin to the closest equivalent present in the Boudewyn tables.
@@ -198,7 +198,7 @@ Init <- function(sim) {
   stable5 <- boudewynSubsetTables(sim$table5, thisAdmin, thisAdmin$EcoBoundaryID)
   stable6 <- boudewynSubsetTables(sim$table6, thisAdmin, thisAdmin$EcoBoundaryID)
   stable7 <- boudewynSubsetTables(sim$table7, thisAdmin, thisAdmin$EcoBoundaryID)
-  
+
   # END reducing Biomass model parameter tables -----------------------------------------------
 
   # START Reading in user provided meta data for growth curves --------------------------------------------
@@ -207,22 +207,22 @@ Init <- function(sim) {
   if (!all(c(sim$curveID, "species") %in% names(sim$userGcMeta))) stop(
     "userGcMeta is missing column(s): ",
     paste(shQuote(setdiff(c(sim$curveID, "species"), names(sim$userGcMeta))), collapse = ", "))
-  
+
   if (any(!c("canfi_species", "genus", "sw_hw") %in% names(sim$userGcMeta))){
-    
+
     sppMatchTable <- CBMutils::sppMatch(
       sim$userGcMeta$species, return = c("CanfiCode", "NFI", "Broadleaf"))[, .(
         canfi_species = CanfiCode,
         sw_hw         = data.table::fifelse(Broadleaf, "hw", "sw"),
         genus         = sapply(strsplit(NFI, "_"), `[[`, 1)
       )]
-    
+
     sim$userGcMeta <- cbind(
       sim$userGcMeta[, .SD, .SDcols = setdiff(names(sim$userGcMeta), names(sppMatchTable))],
       sppMatchTable)
     rm(sppMatchTable)
   }
-  
+
   # END Reading in user provided meta data for growth curves -----------------------------------------------
 
   ################
@@ -230,10 +230,10 @@ Init <- function(sim) {
   sim$userGcMeta[canfi_species == 1211, canfi_species := 1203]
 
   sim$gcMetaAllCols <- sim$userGcMeta
-  
+
   # START processing curves from m3/ha to tonnes of C/ha then to annual increments
   # per above ground biomass pools -------------------------------------------
-  
+
   # Create a new unique key defining each growth curve and spatial_unit_id
   sim$userGcSPU <- cbind(
     gcids = factor(
@@ -241,11 +241,11 @@ Init <- function(sim) {
     ),
     sim$userGcSPU)
   data.table::setkey(sim$userGcSPU, gcids)
-  
+
   sim$gcMeta <- merge(sim$userGcSPU, sim$userGcMeta, by = sim$curveID)
   data.table::setcolorder(sim$gcMeta, which(names(sim$gcMeta) == "gcids"))
   data.table::setkey(sim$gcMeta, gcids)
-  
+
   if (!"ecozones" %in% names(sim$gcMeta)){
     sim$gcMeta <- merge(
       sim$gcMeta,
@@ -255,17 +255,17 @@ Init <- function(sim) {
   gcM3 <- merge(sim$userGcSPU, sim$userGcM3, by = sim$curveID, allow.cartesian = TRUE)[
     , .(gcids, Age, MerchVolume)]
   data.table::setkey(gcM3, gcids, Age)
-  
+
   # 1. Calculate the translation (result is cPools or "cumulative AGcarbon pools")
-  
+
   # Matching is 1st on species, then on gcids which gives us location (admin,
   # spatial unit and ecozone)
   fullSpecies <- unique(sim$gcMeta$species)
-  
+
   cPools <- cumPoolsCreate(fullSpecies, sim$gcMeta, gcM3,
                            stable3, stable4, stable5, stable6, stable7, thisAdmin
   ) |> Cache()
-  
+
   # 2. Make sure the provided curves are annual
   ## if not, we need to extrapolate to make them annual
   minAgeId <- cPools[,.(minAge = max(0, min(age) - 1)), by = "gcids"]
@@ -281,11 +281,11 @@ Init <- function(sim) {
   cPoolsRaw <- rbindlist(list(cPools,add0s), use.names = TRUE)
   set(cPoolsRaw, NULL, "age", as.numeric(cPoolsRaw$age))
   setorderv(cPoolsRaw, c("gcids", "age"))
-  
+
   # 3. Fixing of non-smooth curves
   message(crayon::red("User: please inspect figures of the raw and smoothed translation of your growth curves in: ",
                       figPath))
-  
+
   if (any(cPoolsRaw$gcids == "39_4102001")) {
     cPoolsRaw[gcids == "39_4102001", fol   := cPoolsRaw[gcids == "39_4101001", fol]]
     cPoolsRaw[gcids == "39_4102001", other := cPoolsRaw[gcids == "39_4101001", other]]
@@ -294,7 +294,7 @@ Init <- function(sim) {
     cPoolsRaw[gcids == "39_4103001", fol   := cPoolsRaw[gcids == "39_4101001", fol]]
     cPoolsRaw[gcids == "39_4103001", other := cPoolsRaw[gcids == "39_4101001", other]]
   }
-  
+
 
   # Smooth curves
   cPoolsClean <- cumPoolsSmooth(cPoolsRaw
@@ -310,13 +310,13 @@ Init <- function(sim) {
                        ggsaveArgs = list(width = 10, height = 5, units = "in", dpi = 300),
                        types = "png")
   }
-  
+
   ## keeping the new curves - at this point they are still cumulative
   colNames <- c("totMerch", "fol", "other")
   set(cPoolsClean, NULL, colNames, NULL)
   colNamesNew <- grep("totMerch|fol|other", colnames(cPoolsClean), value = TRUE)
   setnames(cPoolsClean, old = colNamesNew, new = colNames)
-  
+
   # 4. Calculating Increments
   incCols <- c("incMerch", "incFol", "incOther")
   cPoolsClean[, (incCols) := lapply(.SD, function(x) c(NA, diff(x))), .SDcols = colNames,
@@ -331,25 +331,25 @@ Init <- function(sim) {
                        ggsaveArgs = list(width = 10, height = 5, units = "in", dpi = 300),
                        types = "png")
   }
-  
+
   sim$cPoolsClean <- cPoolsClean
 
   # 4. add sw/hw flag
   sim$gcMeta <- sim$gcMeta[, forest_type_id := ifelse(sw_hw == "sw", 1, 3)]
   colsToUseForestType <- c("sw_hw", "gcids")
   forestType <- unique(sim$gcMeta[, ..colsToUseForestType])
-  
+
   #       # cbmTables$forest_type
   #       # id           name
   #       # 1  1       Softwood
   #       # 2  2      Mixedwood
   #       # 3  3       Hardwood
   #       # 4  9 Not Applicable
-  
+
   setkeyv(forestType, "gcids")
   cPoolsClean <- merge(cPoolsClean, forestType, by = "gcids",
                        all.x = TRUE, all.y = FALSE)
-  
+
   # 5. finalize sim$growth_increments table
   outCols <- c("id", "ecozone", "totMerch", "fol", "other")
   cPoolsClean[, (outCols) := NULL]
@@ -370,28 +370,28 @@ Init <- function(sim) {
     if (length(unique(increments[, max(age), by = "sw_hw"]$V1)) != 1)
       stop("All ages should end at the same age for each curveID")
   }
-  
-  
+
+
   ## replace increments that are NA with 0s
   increments[is.na(increments), ] <- 0
   sim$growth_increments <- increments
-  
+
   # END process growth curves -------------------------------------------------------------------------------
   return(invisible(sim))
 }
 
 .inputObjects <- function(sim) {
-  
+
   # Growth and yield
   if (!suppliedElsewhere("curveID", sim)) {
     sim$curveID <- "curveID"
   }
-  
+
   if (!suppliedElsewhere("userGcMeta", sim)) {
     if (!suppliedElsewhere("userGcMetaURL", sim)) {
       sim$userGcMetaURL <- extractURL("userGcMeta")
     }
-    
+
     sim$userGcMeta <- prepInputs(url = sim$userGcMetaURL,
                                  targetFile = "gcMetaEg.csv",
                                  destinationPath = inputPath(sim),
@@ -400,33 +400,33 @@ Init <- function(sim) {
     )
     data.table::setnames(sim$userGcMeta, "gcids", "curveID")
     data.table::setkey(sim$userGcMeta, curveID)
-    
+
     sim$userGcMeta$sw_hw <- sapply(sim$userGcMeta$forest_type_id == 1, ifelse, "sw", "hw")
   }
-  
+
   if (!suppliedElsewhere("userGcM3", sim)){
-    
+
     if (suppliedElsewhere("userGcM3URL", sim)){
-      
+
       sim$userGcM3 <- prepInputs(url = sim$userGcM3URL,
                                  destinationPath = inputPath(sim),
                                  fun = "data.table::fread")
-      
+
     }else{
-      
+
       message("User has not supplied growth curves ('userGcM3' or 'userGcM3URL'). ",
               "Defaults for Saskatchewan will be used.")
-      
+
       sim$userGcM3 <- prepInputs(url = extractURL("userGcM3"),
                                  destinationPath = inputPath(sim),
                                  targetFile = "userGcM3.csv",
                                  fun = "data.table::fread")
       data.table::setnames(sim$userGcM3, names(sim$userGcM3), c("curveID", "Age", "MerchVolume"))
       data.table::setkeyv(sim$userGcM3, c("curveID", "Age"))
-      
+
     }
   }
-  
+
   # cbmAdmin: this is needed to match species and parameters. Boudewyn et al 2007
   # abbreviation and cbm spatial units and ecoBoudnary id is provided with the
   # adminName to avoid confusion.
@@ -439,7 +439,7 @@ Init <- function(sim) {
                                destinationPath = inputPath(sim),
                                fun = fread)
   }
-  
+
   ## tables from Boudewyn -- all downloaded from the NFIS site.
   ## however, NFIS changes the tables and seems to forget parameter columns at times.
   if (!suppliedElsewhere("table3", sim)) {
@@ -450,7 +450,7 @@ Init <- function(sim) {
                              destinationPath = inputPath(sim),
                              fun = fread)
   }
-  
+
   if (!suppliedElsewhere("table4", sim)) {
     if (!suppliedElsewhere("table4URL", sim)) {
       sim$table4URL <- extractURL("table4")
@@ -459,8 +459,8 @@ Init <- function(sim) {
                              destinationPath = inputPath(sim),
                              fun = fread)
   }
-  
-  
+
+
   if (!suppliedElsewhere("table5", sim)) {
     if (!suppliedElsewhere("table5URL", sim)) {
       sim$table5URL <- extractURL("table5")
@@ -469,8 +469,8 @@ Init <- function(sim) {
                              destinationPath = inputPath(sim),
                              fun = fread)
   }
-  
-  
+
+
   if (!suppliedElsewhere("table6", sim)) {
     if (!suppliedElsewhere("table6URL", sim)) {
       sim$table6URL <- extractURL("table6")
@@ -479,7 +479,7 @@ Init <- function(sim) {
                              destinationPath = inputPath(sim),
                              fun = fread)
   }
-  
+
   if (!suppliedElsewhere("table7", sim)) {
     if (!suppliedElsewhere("table7URL", sim)) {
       sim$table7URL <- extractURL("table7")
