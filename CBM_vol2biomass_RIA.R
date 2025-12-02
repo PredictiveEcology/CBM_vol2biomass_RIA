@@ -18,7 +18,7 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = deparse(list("README.txt", "CBM_vol2biomass_RIA.Rmd")),
   reqdPkgs = list(
-    "PredictiveEcology/CBMutils@development (>=2.0.3.0005)",
+    "PredictiveEcology/CBMutils@development (>=2.4.2.9000)",
     "ggforce", "ggplot2", "ggpubr", "googledrive", "mgcv", "quickPlot", "robustbase", "data.table", "patchwork"
   ),
   parameters = rbind(
@@ -210,10 +210,10 @@ Init <- function(sim) {
   if (any(!c("canfi_species", "genus", "sw_hw") %in% names(sim$userGcMeta))){
 
     sppMatchTable <- CBMutils::sppMatch(
-      sim$userGcMeta$species, return = c("CanfiCode", "NFI", "Broadleaf"))[, .(
+      sim$userGcMeta$species, return = c("CanfiCode", "Genus", "Broadleaf"))[, .(
         canfi_species = CanfiCode,
         sw_hw         = data.table::fifelse(Broadleaf, "hw", "sw"),
-        genus         = sapply(strsplit(NFI, "_"), `[[`, 1)
+        genus         = Genus
       )]
 
     sim$userGcMeta <- cbind(
